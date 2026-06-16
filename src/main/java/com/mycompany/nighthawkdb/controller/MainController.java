@@ -59,13 +59,21 @@ public class MainController {
      */
     @FXML
     public void initialize() {
-        // Só carrega o banco padrão se for a primeira vez que o software abre
         if (caminhoBancoSelecionado.isEmpty()) {
-            System.out.println("NighthawkDB inicializado. Carregando base de dados padrão...");
-            caminhoBancoSelecionado = "C:\\Fortes\\AC\\AC.fdb";
-            carregarDiagnosticoBanco(caminhoBancoSelecionado);
+            System.out.println("NighthawkDB inicializado. A procurar base de dados padrão...");
+            String caminhoPadrao = "C:\\Fortes\\AC\\AC.fdb";
+
+            // Verifica se a base de dados padrão sequer existe antes de forçar o erro
+            java.io.File dbPadrao = new java.io.File(caminhoPadrao);
+            if (dbPadrao.exists()) {
+                caminhoBancoSelecionado = caminhoPadrao;
+                carregarDiagnosticoBanco(caminhoBancoSelecionado);
+            } else {
+                if (terminalLogArea != null) {
+                    terminalLogArea.appendText("[SISTEMA] Base de dados padrão não encontrada. Por favor, selecione um banco manualmente.\n");
+                }
+            }
         } else {
-            // Se já tem um banco na memória global, apenas atualiza a UI
             carregarDiagnosticoBanco(caminhoBancoSelecionado);
         }
     }
@@ -81,39 +89,33 @@ public class MainController {
             return;
         }
 
-        // Thread em background para garantir que a consulta SQL ao Firebird 5.0 não trave a interface
         Thread dbDiagnosticsThread = new Thread(() -> {
             try {
-                /*
-                 * Ajuste de String de Conexão: O Firebird via JDBC exige que as barras invertidas 
-                 * do Windows (\) sejam convertidas em barras normais (/) para a URL de rede.
-                 */
                 String formatoUrl = dbPath.replace("\\", "/");
                 String dbUrl = "jdbc:firebirdsql://localhost:3050/" + formatoUrl;
-                String usuario = "SYSDBA";
-                String senha = "masterkey";
 
-                // Executa a varredura lendo as tabelas de sistema do Firebird
-                String relatorioDiagnostico = infoService.obterPainelInformacoes(dbUrl, usuario, senha);
-
-                // Extrai apenas o nome do arquivo para exibir de forma elegante na tela
+                String relatorioDiagnostico = infoService.obterPainelInformacoes(dbUrl, "SYSDBA", "masterkey");
                 String nomeArquivo = dbPath.substring(dbPath.lastIndexOf(java.io.File.separator) + 1);
 
-                // Sincroniza a resposta de volta para a Thread principal do JavaFX
                 javafx.application.Platform.runLater(() -> {
                     if (lblCharsetResult != null) {
                         lblCharsetResult.setText("Instância: " + nomeArquivo);
                     }
                     if (terminalLogArea != null) {
-                        terminalLogArea.appendText("\n[SISTEMA] Diagnóstico estrutural atualizado para: " + nomeArquivo + "\n");
+                        terminalLogArea.appendText("\n[JDBC INFO] Diagnóstico atualizado para: " + nomeArquivo + "\n");
                         terminalLogArea.appendText(relatorioDiagnostico + "\n");
                     }
                 });
 
             } catch (Exception e) {
+                // Captura o erro da porta 3050 ou ficheiro corrompido e avisa o utilizador
                 javafx.application.Platform.runLater(() -> {
                     if (lblCharsetResult != null) {
-                        lblCharsetResult.setText("Result: Erro ao conectar à base");
+                        lblCharsetResult.setText("Result: Erro de Comunicação (Porta 3050)");
+                    }
+                    if (terminalLogArea != null) {
+                        terminalLogArea.appendText("\n[ERRO CRÍTICO] Falha ao ligar via JDBC. O Serviço Firebird (TCP/IP) está ativo na porta 3050?\n");
+                        terminalLogArea.appendText("Detalhe técnico: " + e.getMessage() + "\n");
                     }
                 });
             }
@@ -155,18 +157,36 @@ public class MainController {
     /**
      * Evento do botão "Verificar Erros"
      */
+    /**
+     * Validador auxiliar para garantir que existe um banco selecionado.
+     */
+    private boolean isBancoSelecionadoValido() {
+        if (caminhoBancoSelecionado == null || caminhoBancoSelecionado.isEmpty()) {
+            if (terminalLogArea != null) {
+                terminalLogArea.appendText("[ERRO] Nenhum banco de dados foi selecionado! Use o botão 'Selecionar Banco de Dados'.\n");
+            }
+            return false;
+        }
+        return true;
+    }
+
     @FXML
     public void gerenciarCliqueVerificar() {
-        // 1. Executa o comando de prompt gfix padrão
-        List<String> args = List.of("-v", "-f", "-user", "sysdba", "-pass", "masterkey", "C:\\Fortes\\AC\\AC.FDB");
+        if (!isBancoSelecionadoValido()) {
+            return;
+        }
+
+        List<String> args = List.of("-v", "-f", "-user", "sysdba", "-pass", "masterkey", caminhoBancoSelecionado);
         executarOperacaoMecanica("gfix.exe", args);
 
-        // 2. Dispara a nossa verificação de saúde lógica via JDBC em uma Thread paralela
+        // Auditoria de saúde
         Thread auditoriaThread = new Thread(() -> {
-            String dbUrl = "jdbc:firebirdsql://localhost:3050/C:/Fortes/AC/AC.FDB";
+            // Usa o caminho dinâmico para a conexão JDBC também
+            String formatoUrl = caminhoBancoSelecionado.replace("\\", "/");
+            String dbUrl = "jdbc:firebirdsql://localhost:3050/" + formatoUrl;
+
             List<String> logs = infoService.verificarSaudeIndices(dbUrl, "SYSDBA", "masterkey");
 
-            // Retorna os resultados para a Thread principal atualizar a interface de log
             javafx.application.Platform.runLater(() -> {
                 if (terminalLogArea != null) {
                     terminalLogArea.appendText("\n--- RESULTADO DA AUDITORIA DE SAÚDE ---\n");
@@ -187,7 +207,10 @@ public class MainController {
      */
     @FXML
     public void gerenciarCliqueCorrigir() {
-        List<String> args = List.of("-m", "-f", "-user", "sysdba", "-pass", "masterkey", "C:\\Fortes\\AC\\AC.FDB");
+        if (!isBancoSelecionadoValido()) {
+            return;
+        }
+        List<String> args = List.of("-m", "-f", "-user", "sysdba", "-pass", "masterkey", caminhoBancoSelecionado);
         executarOperacaoMecanica("gfix.exe", args);
     }
 
@@ -196,7 +219,10 @@ public class MainController {
      */
     @FXML
     public void gerenciarCliqueSweep() {
-        List<String> args = List.of("-sweep", "-user", "sysdba", "-pass", "masterkey", "C:\\Fortes\\AC\\AC.FDB");
+        if (!isBancoSelecionadoValido()) {
+            return;
+        }
+        List<String> args = List.of("-sweep", "-user", "sysdba", "-pass", "masterkey", caminhoBancoSelecionado);
         executarOperacaoMecanica("gfix.exe", args);
     }
 
@@ -205,7 +231,15 @@ public class MainController {
      */
     @FXML
     public void gerenciarCliqueBackup() {
-        List<String> args = List.of("-b", "-v", "-user", "sysdba", "-pass", "masterkey", "C:\\Fortes\\AC\\AC.FDB", "C:\\FireDoctor\\Backup.fbk");
+        if (!isBancoSelecionadoValido()) {
+            return;
+        }
+
+        // Gera o nome do backup dinamicamente na mesma pasta do banco original
+        String pastaDestino = caminhoBancoSelecionado.substring(0, caminhoBancoSelecionado.lastIndexOf(java.io.File.separator));
+        String backupPath = pastaDestino + java.io.File.separator + "Backup_Manual.fbk";
+
+        List<String> args = List.of("-b", "-v", "-user", "sysdba", "-pass", "masterkey", caminhoBancoSelecionado, backupPath);
         executarOperacaoMecanica("gbak.exe", args);
     }
 
@@ -215,28 +249,25 @@ public class MainController {
      */
     @FXML
     public void gerenciarCliqueManutencaoCompleta() {
+        if (!isBancoSelecionadoValido()) {
+            return;
+        }
         if (myProgressBar == null || myStatusLabel == null) {
             return;
         }
 
-        // Caminho do banco configurado no escopo (Exemplo padrão do seu projeto)
-        String bancoAlvoPath = "C:\\Fortes\\AC\\AC.FDB";
+        // Agora passa a variável dinâmica e não o caminho fixo
+        ManutencaoCompletaTask macroTask = new ManutencaoCompletaTask(caminhoBancoSelecionado);
 
-        // Instancia a nova macro tarefa customizada
-        ManutencaoCompletaTask macroTask = new ManutencaoCompletaTask(bancoAlvoPath);
-
-        // Vincula os componentes visuais de forma reativa e atômica
         myProgressBar.progressProperty().bind(macroTask.progressProperty());
         myStatusLabel.textProperty().bind(macroTask.messageProperty());
 
-        // Escuta os logs textuais e anexa no TextArea em tempo real
         macroTask.messageProperty().addListener((obs, oldVal, newVal) -> {
             if (terminalLogArea != null && newVal != null) {
                 terminalLogArea.appendText(newVal + "\n");
             }
         });
 
-        // Dispara em Thread paralela dedicada para manter o painel responsivo
         Thread threadMacro = new Thread(macroTask);
         threadMacro.setDaemon(true);
         threadMacro.start();
