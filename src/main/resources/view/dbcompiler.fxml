@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+
+<BorderPane xmlns="http://javafx.com/javafx/11" xmlns:fx="http://javafx.com/fxml/1" 
+            fx:controller="com.mycompany.nighthawkdb.controller.MainController"
+            stylesheets="@style.css" prefWidth="1100" prefHeight="700">
+    
+    <left>
+        <VBox prefWidth="240" styleClass="sidebar" spacing="5">
+            <padding><Insets top="20" right="10" bottom="20" left="10"/></padding>
+            <VBox spacing="2">
+                <Label text="FIREDOCTOR_01" style="-fx-text-fill: #ffb5a0; -fx-font-size: 18px; -fx-font-weight: bold;"/>
+                <Label text="192.168.1.105" style="-fx-text-fill: #b7c8e1; -fx-font-size: 11px;"/>
+            </VBox>
+            <Region prefHeight="25"/>
+            <Button text=" Island Dashboard" styleClass="nav-button" maxWidth="Infinity" onAction="#navegarParaDashboard"/>
+            <Button text="⚖  DBCompiler" styleClass="nav-button nav-button-active" maxWidth="Infinity"/>
+            <Button text="💻  Query Console" styleClass="nav-button" maxWidth="Infinity"/>
+            <Button text="🔄  Backup/Restore" styleClass="nav-button" maxWidth="Infinity"/>
+            <Region VBox.vgrow="ALWAYS"/>
+            <Button text="ℹ  Sobre o Projeto" styleClass="nav-button" maxWidth="Infinity" onAction="#abrirJanelaSobre"/>
+        </VBox>
+    </left>
+
+    <center>
+        <VBox spacing="15">
+            <padding><Insets top="20" right="20" bottom="20" left="20"/></padding>
+            
+            <HBox alignment="CENTER_LEFT">
+                <VBox>
+                    <Label text="DBCompiler Metadata Diff" style="-fx-text-fill: #d4e4fa; -fx-font-size: 24px; -fx-font-weight: bold;"/>
+                    <Label text="Comparador de integridade estrutural e objetos DDL entre bases Firebird." style="-fx-text-fill: #b7c8e1;"/>
+                </VBox>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Button text="🔄 Sincronizar Metadados" style="-fx-background-color: #ff5625; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 10 15; -fx-cursor: hand;"/>
+            </HBox>
+            
+            <GridPane hgap="10" VBox.vgrow="ALWAYS">
+                <columnConstraints>
+                    <ColumnConstraints percentWidth="50"/>
+                    <ColumnConstraints percentWidth="50"/>
+                </columnConstraints>
+                
+                <VBox spacing="5" GridPane.columnIndex="0">
+                    <Label text="BANCO ORIGEM (METADATA_A)" style="-fx-text-fill: #b7c8e1; -fx-font-weight: bold;"/>
+                    <ListView fx:id="listViewBancoA" styleClass="terminal-area" VBox.vgrow="ALWAYS"/>
+                </VBox>
+                
+                <VBox spacing="5" GridPane.columnIndex="1">
+                    <Label text="BANCO DESTINO (METADATA_B)" style="-fx-text-fill: #ffb5a0; -fx-font-weight: bold;"/>
+                    <ListView fx:id="listViewBancoB" styleClass="terminal-area" VBox.vgrow="ALWAYS"/>
+                </VBox>
+            </GridPane>
+        </VBox>
+    </center>
+</BorderPane>

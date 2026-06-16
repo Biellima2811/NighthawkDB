@@ -1,0 +1,69 @@
+/* Paleta de Cores do FireDoctor Pro */
+.root {
+    -fx-background-color: #051424; /* Background ultra-escuro */
+    -fx-font-family: "Inter", "Segoe UI", sans-serif;
+}
+
+/* Customização da Barra Lateral */
+.sidebar {
+    -fx-background-color: #0d1c2d;
+    -fx-border-color: #273647;
+    -fx-border-width: 0 1 0 0; /* Apenas borda direita */
+}
+
+/* Botões da Barra Lateral */
+.nav-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: #b7c8e1;
+    -fx-font-weight: bold;
+    -fx-alignment: CENTER_LEFT;
+    -fx-padding: 10 15 10 15;
+    -fx-background-radius: 0;
+    -fx-cursor: hand;
+}
+.nav-button:hover {
+    -fx-background-color: #273647;
+    -fx-text-fill: #d4e4fa;
+}
+.nav-button-active {
+    -fx-background-color: #3a4a5f;
+    -fx-text-fill: #ffb5a0;
+    -fx-border-color: #ff5625;
+    -fx-border-width: 0 0 0 4; /* Borda laranja grossa na esquerda */
+}
+
+/* Cartões Bento Box do Dashboard */
+.bento-card {
+    -fx-background-color: #0d1c2d;
+    -fx-border-color: #273647;
+    -fx-border-width: 1;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-padding: 15;
+}
+
+/* Botões de Ação de Manutenção */
+.action-button {
+    -fx-background-color: #122131;
+    -fx-border-color: #273647;
+    -fx-text-fill: #d4e4fa;
+    -fx-cursor: hand;
+    -fx-font-weight: bold;
+}
+.action-button:hover {
+    -fx-background-color: #273647;
+    -fx-border-color: #ffb5a0;
+}
+.action-button-prime {
+    -fx-background-color: rgba(255, 86, 37, 0.1);
+    -fx-border-color: rgba(255, 86, 37, 0.4);
+    -fx-text-fill: #ffb5a0;
+}
+
+/* Console do Terminal */
+.terminal-area {
+    -fx-control-inner-background: #000000;
+    -fx-text-fill: #b7c8e1;
+    -fx-font-family: "JetBrains Mono", "Consolas", monospace;
+    -fx-font-size: 12px;
+}

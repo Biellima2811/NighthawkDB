@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ProgressBar?>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.ColumnConstraints?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.RowConstraints?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane prefHeight="700" prefWidth="1100" stylesheets="@style.css" xmlns="http://javafx.com/javafx/26" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.mycompany.nighthawkdb.controller.MainController">
+    
+    <left>
+        <VBox prefWidth="240" spacing="5" styleClass="sidebar">
+            <padding>
+                <Insets bottom="20" left="10" right="10" top="20" />
+            </padding>
+            
+            <VBox spacing="2">
+                <Label style="-fx-text-fill: #ffb5a0; -fx-font-size: 18px; -fx-font-weight: bold;" text="FIREBIRD_01" />
+                <Label style="-fx-text-fill: #b7c8e1; -fx-font-size: 11px;" text="192.168.1.105" />
+            </VBox>
+            
+            <Region prefHeight="25" /> 
+            <Button maxWidth="Infinity" styleClass="nav-button, nav-button-active" text="🖥  Dashboard" />
+            <Button maxWidth="Infinity" onAction="#navegarParaCompiler" styleClass="nav-button" text="⚖  DBCompiler" />
+            <Button maxWidth="Infinity" styleClass="nav-button" text="💻  Query Console" />
+            <Button maxWidth="Infinity" onAction="#gerenciarCliqueBackup" styleClass="nav-button" text="🔄  Backup/Restore" />
+            
+            <Region VBox.vgrow="ALWAYS" /> 
+            <Button maxWidth="Infinity" onAction="#abrirJanelaSobre" styleClass="nav-button" text="ℹ  Sobre o Projeto" />
+        </VBox>
+    </left>
+
+    <center>
+        <VBox spacing="15">
+            <padding>
+                <Insets bottom="20" left="20" right="20" top="20" />
+            </padding>
+            
+            <HBox alignment="CENTER_LEFT" style="-fx-background-color: #051424;">
+                <VBox>
+                    <Label style="-fx-text-fill: #ffb5a0; -fx-font-size: 24px; -fx-font-weight: bold;" text="FireDoctorPro" />
+                </VBox>
+                <Region HBox.hgrow="ALWAYS" /> 
+                <HBox alignment="CENTER" spacing="10" style="-fx-background-color: #1c2b3c; -fx-padding: 8; -fx-border-color: #273647; -fx-border-radius: 4;">
+                    <Label style="-fx-text-fill: #b7c8e1; -fx-font-size: 12px; -fx-font-family: 'JetBrains Mono';" text="● SYSTEM_OK: 99.9% UPTIME" />
+                </HBox>
+            </HBox>
+            
+            <HBox spacing="15" VBox.vgrow="ALWAYS">
+                <VBox prefWidth="450" spacing="12" styleClass="bento-card" HBox.hgrow="ALWAYS">
+                    <Label style="-fx-text-fill: #ffb5a0; -fx-font-weight: bold; -fx-font-size: 13px;" text="DATABASE INSTANCE: FIREBIRD_CORE" />
+                    <Button text="📂 Selecionar Banco de Dados (.FDB)" onAction="#selecionarBancoDados" styleClass="action-button" maxWidth="Infinity"/>
+                    
+                    <VBox spacing="5">
+                        <Label style="-fx-text-fill: #b7c8e1; -fx-font-size: 11px; opacity: 0.7;" text="PORTAS ATIVAS DE ESCUTA" />
+                        <HBox spacing="5">
+                            <Label style="-fx-text-fill: #ffb5a0; -fx-font-family: 'JetBrains Mono';" text="[ 3050 ]" />
+                            <Label style="-fx-text-fill: #ffb5a0; -fx-font-family: 'JetBrains Mono';" text="[ 3051 ]" />
+                            <Label style="-fx-text-fill: #ffb5a0; -fx-font-family: 'JetBrains Mono';" text="[ 3052 ]" />
+                        </HBox>
+                    </VBox>
+                    
+                    <VBox spacing="5" style="-fx-background-color: #000000; -fx-padding: 10; -fx-border-color: #273647; -fx-border-radius: 4;">
+                        <Label style="-fx-text-fill: #b7c8e1; -fx-font-size: 11px;" text="ACTIVE SQL PREVIEW" />
+                        <Label style="-fx-text-fill: #b7c8e1; -fx-font-style: italic;" text="SELECT rdb$character_set_name FROM rdb$database;" />
+    
+                        <Label fx:id="lblCharsetResult" style="-fx-text-fill: #ffb5a0; -fx-font-weight: bold;" text="Result: Carregando..." />
+    
+                        <Label fx:id="lblTotalTables" style="-fx-text-fill: #b7c8e1; -fx-font-size: 12px;" text="Tabelas de Usuário: Calculando..." />
+                    </VBox>
+                </VBox>
+                
+                <GridPane hgap="10" prefWidth="400" vgap="10">
+                    <columnConstraints>
+                        <ColumnConstraints percentWidth="50" />
+                        <ColumnConstraints percentWidth="50" />
+                    </columnConstraints>
+                    
+                    <Button maxHeight="Infinity" maxWidth="Infinity" styleClass="action-button" text="🔧 Verificar Erros" GridPane.columnIndex="0" GridPane.rowIndex="0" />
+                    <Button maxHeight="Infinity" maxWidth="Infinity" styleClass="action-button" text="🩺 Corrigir Erros" GridPane.columnIndex="1" GridPane.rowIndex="0" />
+                    <Button maxHeight="Infinity" maxWidth="Infinity" styleClass="action-button" text="🧹 Executar Sweep" GridPane.columnIndex="0" GridPane.rowIndex="1" />
+                    <Button maxHeight="Infinity" maxWidth="Infinity" onAction="#gerenciarCliqueBackup" styleClass="action-button" text="📦 Realizar Backup" GridPane.columnIndex="1" GridPane.rowIndex="1" />
+                    <Button maxHeight="Infinity" maxWidth="Infinity" onAction="#gerenciarCliqueManutencaoCompleta" styleClass="action-button action-button-prime" text="⚙ Manutenção Automática" GridPane.columnSpan="2" GridPane.rowIndex="2" />
+               <rowConstraints>
+                  <RowConstraints />
+                  <RowConstraints />
+                  <RowConstraints />
+               </rowConstraints>
+                </GridPane>
+            </HBox>
+            
+            <VBox prefHeight="220" spacing="8" style="-fx-background-color: #000000; -fx-border-color: #273647; -fx-border-radius: 4;">
+                <HBox alignment="CENTER_LEFT" style="-fx-background-color: #0d1c2d; -fx-padding: 8;">
+                    <Label style="-fx-text-fill: #d4e4fa; -fx-font-weight: bold; -fx-font-size: 11px;" text="💻 SYSTEM_EXECUTION_LOG" />
+                </HBox>
+                
+                <VBox spacing="4">
+                    <padding>
+                        <Insets left="10" right="10" />
+                    </padding>
+                    <HBox>
+                        <Label style="-fx-text-fill: #ffb5a0; -fx-font-size: 11px;" text="PROCESSO ATIVO" />
+                        <Region HBox.hgrow="ALWAYS" />
+                        <Label fx:id="myStatusLabel" style="-fx-text-fill: #ffb5a0; -fx-font-size: 11px;" text="Aguardando comando..." />
+                    </HBox>
+                    <ProgressBar fx:id="myProgressBar" maxWidth="Infinity" progress="0.0" />
+                </VBox>
+                
+                <TextArea fx:id="terminalLogArea" editable="false" styleClass="terminal-area" VBox.vgrow="ALWAYS" />
+            </VBox>
+        </VBox>
+    </center>
+</BorderPane>
