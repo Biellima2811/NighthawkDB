@@ -2,6 +2,7 @@ package com.mycompany.nighthawkdb.controller;
 
 import com.mycompany.nighthawkdb.core.FirebirdMaintenanceTask;
 import com.mycompany.nighthawkdb.core.ManutencaoCompletaTask;
+import com.mycompany.nighthawkdb.core.DatabaseComparator;
 import com.mycompany.nighthawkdb.db.DatabaseInfoService;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -41,7 +42,15 @@ public class MainController {
     // Instância do serviço JDBC para consultas nativas no Firebird
     private final DatabaseInfoService infoService = new DatabaseInfoService();
 
-    private String caminhoBancoSelecionado = "";
+    private static String caminhoBancoSelecionado = "";
+
+    @FXML
+    private javafx.scene.control.ListView<String> listViewBancoA;
+
+    @FXML
+    private javafx.scene.control.ListView<String> listViewBancoB;
+
+    private final DatabaseComparator comparator = new DatabaseComparator();
 
     /**
      * O método initialize() é um gatilho nativo do JavaFX. Ele é executado
@@ -50,32 +59,53 @@ public class MainController {
      */
     @FXML
     public void initialize() {
-        System.out.println("Controlador inicializado com sucesso. Iniciando diagnóstico JDBC...");
+        // Só carrega o banco padrão se for a primeira vez que o software abre
+        if (caminhoBancoSelecionado.isEmpty()) {
+            System.out.println("NighthawkDB inicializado. Carregando base de dados padrão...");
+            caminhoBancoSelecionado = "C:\\Fortes\\AC\\AC.fdb";
+            carregarDiagnosticoBanco(caminhoBancoSelecionado);
+        } else {
+            // Se já tem um banco na memória global, apenas atualiza a UI
+            carregarDiagnosticoBanco(caminhoBancoSelecionado);
+        }
+    }
 
-        // Criamos uma Thread em background para a consulta SQL não travar a abertura do app
+    /**
+     * Carrega e atualiza o painel de informações via JDBC de forma totalmente
+     * dinâmica e assíncrona para qualquer banco de dados selecionado.
+     *
+     * @param dbPath Caminho absoluto do arquivo .fdb selecionado
+     */
+    private void carregarDiagnosticoBanco(String dbPath) {
+        if (dbPath == null || dbPath.isEmpty()) {
+            return;
+        }
+
+        // Thread em background para garantir que a consulta SQL ao Firebird 5.0 não trave a interface
         Thread dbDiagnosticsThread = new Thread(() -> {
             try {
-                // URL padrão de conexão local do Driver Jaybird para a sua base informada
-                String dbUrl = "jdbc:firebirdsql://localhost:3050/C:/Fortes/AC/AC.FDB";
+                /*
+                 * Ajuste de String de Conexão: O Firebird via JDBC exige que as barras invertidas 
+                 * do Windows (\) sejam convertidas em barras normais (/) para a URL de rede.
+                 */
+                String formatoUrl = dbPath.replace("\\", "/");
+                String dbUrl = "jdbc:firebirdsql://localhost:3050/" + formatoUrl;
                 String usuario = "SYSDBA";
                 String senha = "masterkey";
 
-                // Executa a varredura estrutural usando o serviço tipado que criamos
+                // Executa a varredura lendo as tabelas de sistema do Firebird
                 String relatorioDiagnostico = infoService.obterPainelInformacoes(dbUrl, usuario, senha);
-                System.out.println(relatorioDiagnostico);
 
-                /*
-                 * REGRA DE OURO DO JAVAFX (Platform.runLater):
-                 * Como estamos fazendo a query numa Thread em background, o JavaFX proíbe
-                 * que threads secundárias alterem componentes visuais diretamente.
-                 * O método Platform.runLater sincroniza as respostas de volta para a Thread principal da UI.
-                 */
+                // Extrai apenas o nome do arquivo para exibir de forma elegante na tela
+                String nomeArquivo = dbPath.substring(dbPath.lastIndexOf(java.io.File.separator) + 1);
+
+                // Sincroniza a resposta de volta para a Thread principal do JavaFX
                 javafx.application.Platform.runLater(() -> {
                     if (lblCharsetResult != null) {
-                        lblCharsetResult.setText("Result: Conectado (Diagnóstico OK)");
+                        lblCharsetResult.setText("Instância: " + nomeArquivo);
                     }
                     if (terminalLogArea != null) {
-                        terminalLogArea.appendText("\n[JDBC INFO] Conexão estabelecida com a instância ativa do Firebird.\n");
+                        terminalLogArea.appendText("\n[SISTEMA] Diagnóstico estrutural atualizado para: " + nomeArquivo + "\n");
                         terminalLogArea.appendText(relatorioDiagnostico + "\n");
                     }
                 });
@@ -83,7 +113,7 @@ public class MainController {
             } catch (Exception e) {
                 javafx.application.Platform.runLater(() -> {
                     if (lblCharsetResult != null) {
-                        lblCharsetResult.setText("Result: Erro de Conexão");
+                        lblCharsetResult.setText("Result: Erro ao conectar à base");
                     }
                 });
             }
@@ -212,6 +242,24 @@ public class MainController {
         threadMacro.start();
     }
 
+    @FXML
+    public void gerenciarCliqueSincronizar() {
+        if (listViewBancoA == null || listViewBancoB == null) {
+            return;
+        }
+
+        listViewBancoA.getItems().clear();
+        listViewBancoB.getItems().clear();
+
+        // Simulação elegante enquanto não criamos a extração real
+        listViewBancoA.getItems().addAll("--- PRONTO PARA EXTRAÇÃO DDL ---", "Tabela: FORNECEDORES", "Index: IDX_NOME");
+        listViewBancoB.getItems().addAll("--- PRONTO PARA EXTRAÇÃO DDL ---", "Tabela: FORNECEDORES", "Index: IDX_NOME_NOVO");
+
+        if (terminalLogArea != null) {
+            terminalLogArea.appendText("[DBCOMPILER] Módulo inicializado e aguardando integração com ISQL.exe\n");
+        }
+    }
+
     /**
      * Abre uma janela nativa de seleção de arquivos (FileChooser) para escolher
      * o banco .fdb do cliente.
@@ -235,6 +283,7 @@ public class MainController {
             this.caminhoBancoSelecionado = file.getAbsolutePath();
             if (terminalLogArea != null) {
                 terminalLogArea.appendText("[SISTEMA] Base de dados selecionada para operações: " + caminhoBancoSelecionado + "\n");
+                carregarDiagnosticoBanco(this.caminhoBancoSelecionado);
             }
         }
     }
