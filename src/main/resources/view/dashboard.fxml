@@ -13,7 +13,7 @@
 <?import javafx.scene.layout.RowConstraints?>
 <?import javafx.scene.layout.VBox?>
 
-<BorderPane prefHeight="700" prefWidth="1100" stylesheets="@style.css" xmlns="http://javafx.com/javafx/26" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.mycompany.nighthawkdb.controller.MainController">
+<BorderPane prefHeight="700" prefWidth="1100" stylesheets="@style.css" xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.mycompany.nighthawkdb.controller.MainController">
     
     <left>
         <VBox prefWidth="240" spacing="5" styleClass="sidebar">
