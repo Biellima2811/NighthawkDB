@@ -1,5 +1,6 @@
 package com.mycompany.nighthawkdb.controller;
-
+import javafx.scene.image.Image;
+import com.mycompany.nighthawkdb.AppContext;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -72,13 +73,29 @@ public class MssqlController {
 
     @FXML
     public void abrirJanelaSobre() {
+        Alert a = new Alert(Alert.AlertType.INFORMATION);
+        a.setTitle("Sobre");
+        a.setHeaderText("Manutenção MSSQL/Firebird - Enterprise Edition");
+        a.setContentText("Desenvolvido por Gabriel Levi\nSoluções de TI & Database Maintenance\n\nUtilitário Avançado Multi-SGBD.");
+        a.showAndWait();
     }
 
     private void trocarCena(String fxml, Node node) throws Exception {
-        Stage stage = (Stage) node.getScene().getWindow();
-        FXMLLoader loader = new FXMLLoader(getClass().getResource(fxml));
-        Parent root = loader.load();
-        stage.setScene(new Scene(root, 1100, 700));
+        // Obtém a cena atual (que já está em tela cheia)
+        Scene scene = node.getScene();
+
+        // 1. Tenta pegar a tela do Cache
+        Parent root = AppContext.getInstance().getView(fxml);
+
+        // 2. Se não existir, carrega e guarda no Cache
+        if (root == null) {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource(fxml));
+            root = loader.load();
+            AppContext.getInstance().addView(fxml, root);
+        }
+
+        // Substitui apenas o miolo, mantendo a janela perfeitamente maximizada
+        scene.setRoot(root);
     }
 
     private String buildJdbcUrl() {
@@ -87,13 +104,29 @@ public class MssqlController {
     }
 
     private Connection getConnection() throws SQLException {
+        // Força a máquina virtual do Java (JVM) a acordar e carregar o driver do SQL Server
+        try {
+            Class.forName("com.microsoft.sqlserver.jdbc.SQLServerDriver");
+        } catch (ClassNotFoundException e) {
+            log("[ERRO CRÍTICO] Driver do SQL Server não foi encontrado no sistema.");
+        }
+        
         return DriverManager.getConnection(buildJdbcUrl(), txtUser.getText().trim(), txtPassword.getText().trim());
     }
 
     private void log(String msg) {
+        com.mycompany.nighthawkdb.core.LoggerService.log(msg);
         Platform.runLater(() -> {
             if (terminalLogArea != null) {
                 terminalLogArea.appendText(msg + "\n");
+
+                // PERFORMANCE: Limita o terminal a 500 linhas para não travar
+                String textoAtual = terminalLogArea.getText();
+                int maxCaracteres = 30000;
+                if (textoAtual.length() > maxCaracteres) {
+                    terminalLogArea.setText(textoAtual.substring(textoAtual.length() - maxCaracteres));
+                    terminalLogArea.positionCaret(terminalLogArea.getText().length());
+                }
             }
         });
     }
@@ -208,10 +241,15 @@ public class MssqlController {
 
     private void executarComandoSQL(String desc, String sql) {
         setProgressIndeterminate(true);
-        setStatus(desc + "...");
+        setStatus("Executando: " + desc + "...");
+        log("[MSSQL] Iniciando -> " + desc);
+
         new Thread(() -> {
             try (Connection c = getConnection(); Statement s = c.createStatement()) {
+                long startTime = System.currentTimeMillis();
+
                 boolean isResult = s.execute(sql);
+
                 if (isResult) {
                     ResultSet rs = s.getResultSet();
                     ResultSetMetaData meta = rs.getMetaData();
@@ -222,13 +260,18 @@ public class MssqlController {
                         }
                         sb.append("\n");
                     }
-                    log("[RESULTADO]\n" + sb);
+                    log("[RETORNO DO BANCO]\n" + sb.toString());
                 } else {
-                    log("[EXEC] Comando executado.");
+                    int affectedRows = s.getUpdateCount();
+                    log("[MSSQL] Linhas afetadas/processadas: " + affectedRows);
                 }
-                Platform.runLater(() -> setStatus(desc + " concluído."));
+
+                long totalTime = (System.currentTimeMillis() - startTime) / 1000;
+                log("[SUCESSO] Operação " + desc + " finalizada em " + totalTime + " segundos.");
+                Platform.runLater(() -> setStatus("Concluído."));
             } catch (Exception e) {
-                log("[ERRO] " + e.getMessage());
+                log("[ERRO CRÍTICO] " + desc + " - " + e.getMessage());
+                Platform.runLater(() -> setStatus("Erro na execução!"));
             } finally {
                 setProgressIndeterminate(false);
             }

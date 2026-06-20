@@ -9,7 +9,6 @@
             xmlns:fx="http://javafx.com/fxml/1"
             fx:controller="com.mycompany.nighthawkdb.controller.MainController">
 
-    <!-- Barra Lateral (mesma do Dashboard) -->
     <left>
         <VBox fx:id="sidebarVBox" prefWidth="220" styleClass="sidebar" spacing="8">
             <padding>
@@ -31,7 +30,6 @@
         </VBox>
     </left>
 
-    <!-- Conteúdo Central -->
     <center>
         <VBox spacing="15" styleClass="main-content">
             <padding>
@@ -40,7 +38,6 @@
 
             <Label text="Comparador de Bancos Firebird" styleClass="main-title" />
 
-            <!-- Seleção dos bancos -->
             <HBox spacing="10" alignment="CENTER_LEFT">
                 <Label text="Banco A (Referência):" style="-fx-text-fill: #ccd6e0; -fx-min-width: 130; -fx-font-weight: bold;" />
                 <TextField fx:id="txtBancoA" HBox.hgrow="ALWAYS" styleClass="db-path-field" />
@@ -53,7 +50,6 @@
                 <Button text="📂 Procurar" styleClass="action-btn-primary" onAction="#procurarBancoB" />
             </HBox>
 
-            <!-- Filtros de objeto -->
             <HBox spacing="15" alignment="CENTER_LEFT" style="-fx-padding: 5 0;">
                 <Label text="Filtrar objetos:" style="-fx-text-fill: #96a7b6; -fx-font-weight: bold;" />
                 <CheckBox fx:id="chkTables" text="Tabelas" selected="true" style="-fx-text-fill: #ccd6e0;" />
@@ -63,28 +59,32 @@
                 <CheckBox fx:id="chkCompararDados" text="Comparar contagem de registros" style="-fx-text-fill: #ccd6e0;" />
             </HBox>
 
-            <!-- Botão de comparação -->
             <Button text="🔄 Comparar Metadados e Gerar Script" styleClass="action-btn-accent"
                     onAction="#executarComparacaoIBExpert" maxWidth="Infinity" />
 
-            <!-- Listas de diferenças -->
             <HBox spacing="10" VBox.vgrow="ALWAYS">
-                <VBox spacing="5" HBox.hgrow="ALWAYS">
+                <VBox spacing="5" HBox.hgrow="ALWAYS" prefWidth="250">
                     <Label text="Diferenças apenas no Banco A" style="-fx-text-fill: #ff6b6b; -fx-font-weight: bold;" />
                     <ListView fx:id="listViewBancoA" VBox.vgrow="ALWAYS"
                               style="-fx-background-color: #0a0e14; -fx-text-fill: #ccd6e0; -fx-border-color: #2a3a4a; -fx-border-radius: 6;" />
                 </VBox>
-                <VBox spacing="5" HBox.hgrow="ALWAYS">
+                
+                <VBox spacing="5" HBox.hgrow="ALWAYS" prefWidth="250">
                     <Label text="Diferenças apenas no Banco B" style="-fx-text-fill: #ff6b6b; -fx-font-weight: bold;" />
                     <ListView fx:id="listViewBancoB" VBox.vgrow="ALWAYS"
                               style="-fx-background-color: #0a0e14; -fx-text-fill: #ccd6e0; -fx-border-color: #2a3a4a; -fx-border-radius: 6;" />
                 </VBox>
+
+                <VBox spacing="5" HBox.hgrow="ALWAYS" prefWidth="250">
+                    <Label text="Contagem de registros (A ≠ B)" style="-fx-text-fill: #ffcc00; -fx-font-weight: bold;" />
+                    <ListView fx:id="listViewCountDiff" VBox.vgrow="ALWAYS"
+                              style="-fx-background-color: #0a0e14; -fx-text-fill: #ccd6e0; -fx-border-color: #2a3a4a; -fx-border-radius: 6;" />
+                </VBox>
             </HBox>
 
-            <!-- Script DDL (sincronizar B com A) -->
             <Label text="Script de Sincronização (aplicar no Banco B):" styleClass="db-selector-label" />
             <TextArea fx:id="txtResultadosScript" VBox.vgrow="ALWAYS" editable="false"
-                      styleClass="terminal" promptText="O script DDL aparecerá aqui..." />
+                      styleClass="terminal" promptText="O script DDL aparecerá aqui após a comparação..." />
         </VBox>
     </center>
 </BorderPane>

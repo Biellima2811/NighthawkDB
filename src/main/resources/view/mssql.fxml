@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
@@ -12,9 +11,7 @@
     <!-- Barra Lateral -->
     <left>
         <VBox fx:id="sidebarVBox" prefWidth="220" styleClass="sidebar" spacing="8">
-            <padding>
-                <Insets top="20" right="10" bottom="20" left="10"/>
-            </padding>
+            <padding><Insets top="20" right="10" bottom="20" left="10"/></padding>
             <Label text="NighthawksDB" styleClass="sidebar-server-name" />
             <Separator styleClass="sidebar-separator" />
             <Button text="🔥 Firebird/Manutenção" styleClass="nav-button" maxWidth="Infinity" onAction="#navegarParaDashboard"/>
@@ -25,116 +22,90 @@
         </VBox>
     </left>
 
-    <!-- Conteúdo Central -->
+    <!-- Conteúdo Central Otimizado -->
     <center>
-        <VBox spacing="15" styleClass="main-content">
-            <padding>
-                <Insets top="20" right="30" bottom="20" left="30"/>
-            </padding>
-
+        <VBox spacing="6" styleClass="main-content">
+            <padding><Insets top="10" right="20" bottom="10" left="20"/></padding>
+            
             <Label styleClass="main-title" text="MSSQL Tools" />
-            <Label style="-fx-text-fill: #8899aa; -fx-font-size: 14px;" text="Manutenção de bancos Microsoft SQL Server" />
 
-            <!-- Painel de Conexão -->
-            <VBox spacing="10" styleClass="db-selector-box">
-                <Label styleClass="db-selector-label" text="🔌 Configuração de Conexão" />
-
+            <!-- Painel de Conexão Compacto -->
+            <VBox spacing="5" styleClass="db-selector-box">
                 <HBox spacing="10">
-                    <VBox spacing="5" HBox.hgrow="ALWAYS">
-                        <Label style="-fx-text-fill: #ccd6e0;" text="Servidor" />
+                    <VBox spacing="2" HBox.hgrow="ALWAYS">
+                        <Label style="-fx-text-fill: #ccd6e0; -fx-font-size: 11px;" text="Servidor" />
                         <TextField fx:id="txtServer" promptText="localhost" styleClass="db-path-field" />
                     </VBox>
-                    <VBox prefWidth="80" spacing="5">
-                        <Label style="-fx-text-fill: #ccd6e0;" text="Porta" />
+                    <VBox prefWidth="80" spacing="2">
+                        <Label style="-fx-text-fill: #ccd6e0; -fx-font-size: 11px;" text="Porta" />
                         <TextField fx:id="txtPort" promptText="1433" styleClass="db-path-field" />
                     </VBox>
-                </HBox>
-
-                <HBox spacing="10">
-                    <VBox spacing="5" HBox.hgrow="ALWAYS">
-                        <Label style="-fx-text-fill: #ccd6e0;" text="Banco de Dados" />
+                    <VBox spacing="2" HBox.hgrow="ALWAYS">
+                        <Label style="-fx-text-fill: #ccd6e0; -fx-font-size: 11px;" text="Banco de Dados" />
                         <TextField fx:id="txtDatabase" promptText="master" styleClass="db-path-field" />
                     </VBox>
                 </HBox>
-
+                
                 <HBox spacing="10">
-                    <VBox spacing="5" HBox.hgrow="ALWAYS">
-                        <Label style="-fx-text-fill: #ccd6e0;" text="Usuário" />
+                    <VBox spacing="2" HBox.hgrow="ALWAYS">
+                        <Label style="-fx-text-fill: #ccd6e0; -fx-font-size: 11px;" text="Usuário (Ex: sa)" />
                         <TextField fx:id="txtUser" promptText="sa" styleClass="db-path-field" />
                     </VBox>
-                    <VBox spacing="5" HBox.hgrow="ALWAYS">
-                        <Label style="-fx-text-fill: #ccd6e0;" text="Senha" />
+                    <VBox spacing="2" HBox.hgrow="ALWAYS">
+                        <Label style="-fx-text-fill: #ccd6e0; -fx-font-size: 11px;" text="Senha" />
                         <PasswordField fx:id="txtPassword" promptText="****" styleClass="db-path-field" />
                     </VBox>
-                </HBox>
-
-                <HBox spacing="10" style="-fx-padding: 5 0;">
-                    <Button text="🔌 Testar Conexão" styleClass="action-btn" onAction="#testaConexao" />
-                    <Button text="ℹ Carregar Informações" styleClass="action-btn" onAction="#carregarInformacoesBanco" />
+                    <VBox alignment="BOTTOM_CENTER" spacing="5">
+                        <HBox spacing="5">
+                           <Button text="🔌 Testar Conexão" styleClass="action-btn-primary" onAction="#testaConexao" />
+                           <Button text="ℹ Informações" styleClass="action-btn-primary" onAction="#carregarInformacoesBanco" />
+                        </HBox>
+                    </VBox>
                 </HBox>
             </VBox>
 
             <!-- Status rápido -->
-            <HBox spacing="20" alignment="CENTER_LEFT" style="-fx-padding: 5 0;">
+            <HBox spacing="15" alignment="CENTER_LEFT" style="-fx-padding: 3 0;">
                 <Label text="Status:" style="-fx-text-fill: #96a7b6;" />
-                <Label fx:id="lblDbStatus" text="Desconhecido" style="-fx-text-fill: white;" />
+                <Label fx:id="lblDbStatus" text="Desconhecido" style="-fx-text-fill: white; -fx-font-weight: bold;" />
                 <Label text="Tamanho:" style="-fx-text-fill: #96a7b6;" />
-                <Label fx:id="lblDbSize" text="---" style="-fx-text-fill: white;" />
+                <Label fx:id="lblDbSize" text="---" style="-fx-text-fill: white; -fx-font-weight: bold;" />
                 <Label text="Tabelas:" style="-fx-text-fill: #96a7b6;" />
-                <Label fx:id="lblTableCount" text="---" style="-fx-text-fill: white;" />
+                <Label fx:id="lblTableCount" text="---" style="-fx-text-fill: white; -fx-font-weight: bold;" />
             </HBox>
 
-            <!-- CHECKTABLE (verificação específica) -->
-            <HBox spacing="10" alignment="CENTER_LEFT">
-                <Label text="Verificar tabela:" style="-fx-text-fill: #ccd6e0; -fx-min-width: 120;" />
-                <TextField fx:id="txtTableName" promptText="Nome da tabela" HBox.hgrow="ALWAYS" styleClass="db-path-field" />
-                <Button text="🔬 DBCC CHECKTABLE" styleClass="action-btn" onAction="#executarCheckTable" />
-            </HBox>
-
-            <!-- Botões de Ação -->
-            <GridPane hgap="12" vgap="12">
+            <!-- Botões de Ação Menores -->
+            <GridPane hgap="8" vgap="8">
                 <columnConstraints>
-                    <ColumnConstraints percentWidth="50" />
-                    <ColumnConstraints percentWidth="50" />
+                    <ColumnConstraints percentWidth="33.3" />
+                    <ColumnConstraints percentWidth="33.3" />
+                    <ColumnConstraints percentWidth="33.3" />
                 </columnConstraints>
-                <rowConstraints>
-                    <RowConstraints />
-                    <RowConstraints />
-                    <RowConstraints />
-                </rowConstraints>
+                <rowConstraints><RowConstraints /><RowConstraints /></rowConstraints>
 
-                <Button text="🔍 Verificar Integridade (DBCC)" styleClass="action-btn"
-                        GridPane.columnIndex="0" GridPane.rowIndex="0"
-                        onAction="#executarCheckDB" maxWidth="Infinity" maxHeight="Infinity" />
-                <Button text="🛠 Rebuild de Índices" styleClass="action-btn"
-                        GridPane.columnIndex="1" GridPane.rowIndex="0"
-                        onAction="#executarRebuildIndexes" maxWidth="Infinity" maxHeight="Infinity" />
-                <Button text="📊 Atualizar Estatísticas" styleClass="action-btn"
-                        GridPane.columnIndex="0" GridPane.rowIndex="1"
-                        onAction="#executarUpdateStatistics" maxWidth="Infinity" maxHeight="Infinity" />
-                <Button text="💾 Backup da Base" styleClass="action-btn"
-                        GridPane.columnIndex="1" GridPane.rowIndex="1"
-                        onAction="#executarBackup" maxWidth="Infinity" maxHeight="Infinity" />
-                <Button text="📥 Restaurar Backup" styleClass="action-btn"
-                        GridPane.columnIndex="0" GridPane.rowIndex="2"
-                        onAction="#executarRestore" maxWidth="Infinity" maxHeight="Infinity" />
-                <Button text="⚙ Comando Personalizado" styleClass="action-btn-accent"
-                        GridPane.columnIndex="1" GridPane.rowIndex="2"
-                        maxWidth="Infinity" maxHeight="Infinity" />
+                <Button text="🔍 Verificar Integridade (DBCC)" styleClass="action-btn" GridPane.columnIndex="0" GridPane.rowIndex="0" onAction="#executarCheckDB" maxWidth="Infinity" />
+                <Button text="🛠 Rebuild de Índices" styleClass="action-btn" GridPane.columnIndex="1" GridPane.rowIndex="0" onAction="#executarRebuildIndexes" maxWidth="Infinity" />
+                <Button text="📊 Atualizar Estatísticas" styleClass="action-btn" GridPane.columnIndex="2" GridPane.rowIndex="0" onAction="#executarUpdateStatistics" maxWidth="Infinity" />
+                
+                <Button text="💾 Backup da Base (.bak)" styleClass="action-btn" GridPane.columnIndex="0" GridPane.rowIndex="1" onAction="#executarBackup" maxWidth="Infinity" />
+                <Button text="📥 Restaurar Backup" styleClass="action-btn" GridPane.columnIndex="1" GridPane.rowIndex="1" onAction="#executarRestore" maxWidth="Infinity" />
+                
+                <HBox spacing="5" GridPane.columnIndex="2" GridPane.rowIndex="1">
+                   <TextField fx:id="txtTableName" promptText="Tabela..." HBox.hgrow="ALWAYS" styleClass="db-path-field" />
+                   <Button text="🔬 CHECKTABLE" styleClass="action-btn-accent" onAction="#executarCheckTable" />
+                </HBox>
             </GridPane>
 
-            <!-- Progresso & Status -->
-            <VBox spacing="5">
+            <!-- Terminal -->
+            <VBox spacing="2" VBox.vgrow="ALWAYS">
                 <HBox>
-                    <Label styleClass="progress-header" text="STATUS" />
+                    <Label styleClass="progress-header" text="CONSOLE MSSQL" />
                     <Region HBox.hgrow="ALWAYS" />
                     <Label fx:id="myStatusLabel" styleClass="progress-status" text="Pronto." />
                 </HBox>
                 <ProgressBar fx:id="myProgressBar" maxWidth="Infinity" progress="0.0" styleClass="progress-bar" />
+                <TextArea fx:id="terminalLogArea" editable="false" styleClass="terminal" VBox.vgrow="ALWAYS" />
             </VBox>
-
-            <!-- Terminal -->
-            <TextArea fx:id="terminalLogArea" editable="false" styleClass="terminal" VBox.vgrow="ALWAYS" />
         </VBox>
     </center>
 </BorderPane>
