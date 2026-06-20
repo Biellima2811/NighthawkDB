@@ -1,4 +1,5 @@
 package com.mycompany.nighthawkdb.controller;
+
 import javafx.scene.image.Image;
 import com.mycompany.nighthawkdb.AppContext;
 import javafx.application.Platform;
@@ -99,7 +100,7 @@ public class MssqlController {
     }
 
     private String buildJdbcUrl() {
-        return String.format("jdbc:sqlserver://%s:%s;databaseName=%s;encrypt=false;trustServerCertificate=true",
+        return String.format("jdbc:sqlserver://%s:%s;databaseName=%s;integratedSecurity=true;encrypt=false;trustServerCertificate=true",
                 txtServer.getText().trim(), txtPort.getText().trim(), txtDatabase.getText().trim());
     }
 
@@ -110,7 +111,7 @@ public class MssqlController {
         } catch (ClassNotFoundException e) {
             log("[ERRO CRÍTICO] Driver do SQL Server não foi encontrado no sistema.");
         }
-        
+
         return DriverManager.getConnection(buildJdbcUrl(), txtUser.getText().trim(), txtPassword.getText().trim());
     }
 
