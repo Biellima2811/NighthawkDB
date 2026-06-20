@@ -2,13 +2,11 @@ package com.mycompany.nighthawkdb.core;
 
 import com.mycompany.nighthawkdb.config.ConfigManager;
 import javafx.concurrent.Task;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.InputStreamReader;
-import java.util.ArrayList;
-import java.util.List;
+import java.io.*;
+import java.util.*;
 
 public class FirebirdMaintenanceTask extends Task<Void> {
+
     private final String commandType;
     private final List<String> arguments;
 
@@ -19,67 +17,62 @@ public class FirebirdMaintenanceTask extends Task<Void> {
 
     @Override
     protected Void call() {
-        updateMessage("Iniciando processo: " + commandType + "...");
+        updateMessage("Iniciando " + commandType);
         updateProgress(0, 100);
-        long startTime = System.currentTimeMillis();
-
+        long start = System.currentTimeMillis();
         try {
-            String binFolder = ConfigManager.getFirebirdBinPath();
-            
-            // MENTORIA: Interrupção preventiva. Se a pasta for vazia, nem tentamos 
-            // iniciar o processo, poupando a aplicação de um "crash".
-            if (binFolder.isEmpty()) {
-                updateMessage("[ERRO CRÍTICO] Pasta BIN do Firebird não encontrada automaticamente.");
-                updateMessage("Por favor, configure o caminho manualmente nas opções do sistema.");
-                return null; 
+            String bin = ConfigManager.getFirebirdBinPath();
+            if (bin.isEmpty()) {
+                updateMessage("[ERRO] Pasta BIN não encontrada.");
+                return null;
             }
-            
-            // Se a pasta bin não estiver configurada, tenta rodar o comando puro 
-            // assumindo que os técnicos configuraram o PATH do Windows.
-            String executable = binFolder.isEmpty() ? commandType : binFolder + File.separator + commandType;
+            String executable = bin + File.separator + commandType;
+            List<String> full = new ArrayList<>();
+            full.add(executable);
+            full.addAll(arguments);
+            ProcessBuilder pb = new ProcessBuilder(full).redirectErrorStream(true);
+            Process p = pb.start();
 
-            List<String> fullCommand = new ArrayList<>();
-            fullCommand.add(executable);
-            fullCommand.addAll(arguments);
-
-            ProcessBuilder builder = new ProcessBuilder(fullCommand);
-            builder.redirectErrorStream(true);
-
-            updateMessage("[SISTEMA] Executando: " + String.join(" ", fullCommand));
-            Process process = builder.start();
-
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            List<String> linhas = new ArrayList<>();
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
                 String line;
-                int estimatedLinesProcessed = 0;
-
-                while ((line = reader.readLine()) != null) {
-                    estimatedLinesProcessed++;
-                    long elapsedTime = (System.currentTimeMillis() - startTime) / 1000;
-                    
-                    updateMessage(String.format("[%ds] %s", elapsedTime, line));
-                    
-                    double progress = Math.min(estimatedLinesProcessed / 200.0, 1.0);
-                    updateProgress(progress, 1.0);
+                int count = 0;
+                while ((line = br.readLine()) != null) {
+                    linhas.add(line);
+                    long elapsed = (System.currentTimeMillis() - start) / 1000;
+                    updateMessage(String.format("[%ds] %s", elapsed, line));
+                    if (line.contains("% done")) {
+                        try {
+                            double perc = Double.parseDouble(line.replaceAll(".*?(\\d+)% done.*", "$1")) / 100.0;
+                            updateProgress(perc, 1.0);
+                        } catch (NumberFormatException ignored) {
+                        }
+                    }
+                    double prog = Math.min(count++ / 200.0, 1.0);
+                    updateProgress(prog, 1.0);
                 }
             }
-
-            int exitCode = process.waitFor();
-            long totalTime = (System.currentTimeMillis() - startTime) / 1000;
-
-            if (exitCode == 0) {
-                updateMessage("[SUCESSO] Operação concluída em " + totalTime + " segundos.");
+            int exit = p.waitFor();
+            long total = (System.currentTimeMillis() - start) / 1000;
+            if (exit == 0) {
+                updateMessage("[SUCESSO] Concluído em " + total + "s");
             } else {
-                updateMessage("[ALERTA] Processo finalizado com código de erro: " + exitCode);
+                updateMessage("[ALERTA] Código de saída: " + exit);
             }
 
-        } catch (java.io.IOException e) {
-            updateMessage("[ERRO CRÍTICO] Executável não encontrado. Verifique se o Firebird está instalado ou configure a pasta BIN.");
-            updateMessage("Detalhe técnico: " + e.getMessage());
+            int erros = 0, corr = 0;
+            for (String l : linhas) {
+                if (l.toLowerCase().contains("error") || l.contains("corrupt")) {
+                    erros++;
+                }
+                if (l.contains("mend") || l.contains("repaired")) {
+                    corr++;
+                }
+            }
+            updateMessage(String.format("RESUMO_GFIX|%d|%d|%d", exit, erros, corr));
         } catch (Exception e) {
-            updateMessage("[ERRO FATAL] Falha inesperada na Thread de manutenção.");
-            updateMessage("Detalhe técnico: " + e.getMessage());
+            updateMessage("[ERRO] " + e.getMessage());
         }
-        
         return null;
     }
 }

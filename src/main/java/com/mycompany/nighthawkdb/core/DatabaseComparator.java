@@ -1,83 +1,67 @@
 package com.mycompany.nighthawkdb.core;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList; // Adicionado
-import java.util.List;      // Adicionado
-import java.util.TreeSet;
-import java.util.stream.Collectors;
+import com.mycompany.nighthawkdb.config.ConfigManager;
+import java.io.*;
+import java.nio.file.*;
+import java.util.*;
 
-/**
- * Mecanismo robusto de comparação estrutural de bancos Firebird. Resolve o bug
- * de falso-positivo de linhas deslocadas do script Python.
- */
 public class DatabaseComparator {
 
-    /**
-     * Compara dois arquivos SQL gerados pelo dump de metadados do ISQL. Utiliza
-     * ordenação natural (TreeSet) para garantir que a ordem das linhas não
-     * quebre a comparação.
-     */
-    public List<String> compararMetadados(String pathMeta1, String pathMeta2) throws IOException {
-        // Carrega todas as linhas eliminando espaços em branco extras e linhas vazias
-        TreeSet<String> meta1Normalizado = Files.lines(Path.of(pathMeta1))
-                .map(String::trim)
-                .filter(line -> !line.isEmpty() && !line.startsWith("/*")) // Ignora comentários do Firebird
-                .collect(Collectors.toCollection(TreeSet::new));
-
-        TreeSet<String> meta2Normalizado = Files.lines(Path.of(pathMeta2))
-                .map(String::trim)
-                .filter(line -> !line.isEmpty() && !line.startsWith("/*"))
-                .collect(Collectors.toCollection(TreeSet::new));
-
-        List<String> diferencas = new ArrayList<>();
-
-        // Encontra o que tem no Banco 1 que está faltando no Banco 2
-        for (String linha : meta1Normalizado) {
-            if (!meta2Normalizado.contains(linha)) {
-                diferencas.add("Exclusivo no Banco 1: " + linha);
-            }
-        }
-
-        // Encontra o que tem no Banco 2 que está faltando no Banco 1
-        for (String linha : meta2Normalizado) {
-            if (!meta1Normalizado.contains(linha)) {
-                diferencas.add("Exclusivo no Banco 2: " + linha);
-            }
-        }
-
-        return diferencas;
+    public String extrairMetadados(String dbPath) throws Exception {
+        File tmp = File.createTempFile("meta_", ".sql");
+        extrairMetadadosComIsql(dbPath, tmp.getAbsolutePath());
+        return tmp.getAbsolutePath();
     }
 
-    /**
-     * Executa o utilitário isql.exe em background para extrair o esquema DDL de
-     * um banco de dados.
-     *
-     * @param dbPath Caminho físico do arquivo .fdb
-     * @param outputFile Arquivo de texto .sql que receberá o dump dos metadados
-     */
-    private void extrairMetadadosComIsql(String dbPath, String outputFile) throws Exception {
-        String binFolder = com.mycompany.nighthawkdb.config.ConfigManager.getFirebirdBinPath();
-        String isqlExecutable = binFolder.isEmpty() ? "isql.exe" : binFolder + java.io.File.separator + "isql.exe";
+    public ResultadoComparacao compararBancos(String pathA, String pathB) throws Exception {
+        String arqA = extrairMetadados(pathA), arqB = extrairMetadados(pathB);
+        List<MetadataExtractor.DatabaseObject> objA = MetadataExtractor.extrairObjetos(arqA);
+        List<MetadataExtractor.DatabaseObject> objB = MetadataExtractor.extrairObjetos(arqB);
+        new File(arqA).delete(); new File(arqB).delete();
 
-        // Monta o comando de extração estrutural (-x extrai metadados, -o redireciona a saída)
-        List<String> comando = List.of(
-                isqlExecutable,
-                "-user", "sysdba",
-                "-pass", "masterkey",
-                "-x", // Extrair definições de metadados
-                "-o", outputFile, // Enviar o resultado direto para o arquivo de destino
-                dbPath
-        );
+        Map<String, Map<String, String>> mapA = agrupar(objA), mapB = agrupar(objB);
+        StringBuilder script = new StringBuilder(), scriptReverso = new StringBuilder();
+        List<String> difA = new ArrayList<>(), difB = new ArrayList<>();
+        String[] ordem = {"TABLE", "INDEX", "VIEW", "GENERATOR", "EXCEPTION", "PROCEDURE", "TRIGGER"};
 
-        ProcessBuilder builder = new ProcessBuilder(comando);
-        builder.redirectErrorStream(true);
-        Process process = builder.start();
+        for (String tipo : ordem) {
+            Map<String, String> ta = mapA.getOrDefault(tipo, Collections.emptyMap());
+            Map<String, String> tb = mapB.getOrDefault(tipo, Collections.emptyMap());
+            for (String nome : ta.keySet()) {
+                if (!tb.containsKey(nome)) {
+                    script.append("-- ").append(tipo).append(" ").append(nome).append(" ausente em B\n").append(ta.get(nome)).append("\n\n");
+                    difA.add(tipo + ": " + nome + " (ausente em B)");
+                }
+            }
+            for (String nome : tb.keySet()) {
+                if (!ta.containsKey(nome)) {
+                    difB.add(tipo + ": " + nome + " (ausente em A)");
+                    scriptReverso.append("DROP ").append(tipo).append(" \"").append(nome).append("\";\n");
+                }
+            }
+        }
+        return new ResultadoComparacao(script.toString(), scriptReverso.toString(), difA, difB);
+    }
 
-        int exitCode = process.waitFor();
-        if (exitCode != 0) {
-            throw new RuntimeException("O isql falhou ao extrair metadados. Código: " + exitCode);
+    private Map<String, Map<String, String>> agrupar(List<MetadataExtractor.DatabaseObject> lista) {
+        Map<String, Map<String, String>> mapa = new HashMap<>();
+        for (var obj : lista) mapa.computeIfAbsent(obj.type, k -> new HashMap<>()).put(obj.name, obj.ddl);
+        return mapa;
+    }
+
+    private void extrairMetadadosComIsql(String dbPath, String out) throws Exception {
+        String bin = ConfigManager.getFirebirdBinPath();
+        String isql = bin.isEmpty() ? "isql.exe" : bin + File.separator + "isql.exe";
+        ProcessBuilder pb = new ProcessBuilder(isql, "-user", "sysdba", "-pass", "masterkey", "-x", "-o", out, dbPath);
+        Process p = pb.start();
+        if (p.waitFor() != 0) throw new RuntimeException("isql falhou");
+    }
+
+    public static class ResultadoComparacao {
+        public final String scriptDDL, scriptReverso;
+        public final List<String> difsBancoA, difsBancoB;
+        public ResultadoComparacao(String s, String r, List<String> a, List<String> b) {
+            scriptDDL = s; scriptReverso = r; difsBancoA = a; difsBancoB = b;
         }
     }
 }

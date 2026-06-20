@@ -7,35 +7,28 @@ import javafx.scene.Scene;
 import javafx.stage.Stage;
 
 /**
- * Ponto de entrada principal da aplicação FireDoctor PRO.
- * Responsável por gerir o ciclo de vida do JavaFX e carregar o layout 
- * inicial (Dashboard) contido nos recursos do projeto.
+ * Ponto de entrada da aplicação Manutenção Firebird.
+ * Responsável por iniciar o JavaFX e carregar a tela inicial do Dashboard.
  */
 public class App extends Application {
 
     @Override
     public void start(Stage stage) throws Exception {
-        /*
-         * Carrega o ficheiro visual do Dashboard a partir da pasta de recursos (resources).
-         * O caminho "/view/dashboard.fxml" aponta diretamente para o ficheiro que desenhámos.
-         */
+        // Carrega o arquivo FXML da interface principal (Dashboard)
         FXMLLoader loader = new FXMLLoader(getClass().getResource("/view/dashboard.fxml"));
-        Parent root = loader.load();
-        
-        /*
-         * Define a cena principal (Scene) injetando o nosso layout e estabelecendo
-         * as dimensões padrão recomendadas no CSS (1100 de largura por 700 de altura).
-         */
+        Parent root = loader.load();   // Converte o FXML em árvore de componentes
+
+        // Define a cena com tamanho padrão 1100x700
         Scene scene = new Scene(root, 1100, 700);
-        
-        // Configurações do Palco (Janela principal do Windows)
-        stage.setTitle("NighthawkDB Pro - Enterprise Dashboard");
+
+        // Nome da janela alterado para "Manutenção Firebird"
+        stage.setTitle("Manutenção Firebird - Enterprise Edition");
         stage.setScene(scene);
-        stage.show();
+        stage.show();   // Exibe a janela
     }
 
     public static void main(String[] args) {
-        // Dispara a infraestrutura nativa do JavaFX
+        // Lança a aplicação JavaFX (chama start internamente)
         launch(args);
     }
 }

@@ -3,372 +3,345 @@ package com.mycompany.nighthawkdb.controller;
 import com.mycompany.nighthawkdb.core.FirebirdMaintenanceTask;
 import com.mycompany.nighthawkdb.core.ManutencaoCompletaTask;
 import com.mycompany.nighthawkdb.core.DatabaseComparator;
+import com.mycompany.nighthawkdb.core.FirebirdVersionDetector;
 import com.mycompany.nighthawkdb.db.DatabaseInfoService;
+import java.io.File;
+
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
-import javafx.scene.control.Alert;
-import javafx.scene.control.Label;
-import javafx.scene.control.ProgressBar;
-import javafx.scene.control.TextArea;
+import javafx.scene.control.*;
+import javafx.scene.layout.VBox;
+import javafx.scene.shape.Circle;
 import javafx.stage.Stage;
-import java.io.IOException;
-import java.util.List;
 
-/**
- * Classe Controladora Principal Unificada. Gerencia os eventos visuais do
- * Dashboard e do DBCompiler, invocando as regras de negócio em background para
- * manter a interface fluida.
- */
+import java.io.IOException;
+import java.sql.*;
+import java.util.*;
+import javafx.event.ActionEvent;
+import javafx.scene.Node;
+import javafx.stage.FileChooser;
+import javafx.scene.paint.Color;
+
 public class MainController {
 
-    // Componentes injetados do dashboard.fxml
-    @FXML
-    private ProgressBar myProgressBar;
+    @FXML private ProgressBar myProgressBar;
+    @FXML private Label myStatusLabel;
+    @FXML private TextArea terminalLogArea;
+    @FXML private Label lblCharsetResult;
+    @FXML private Circle circle3050, circle3051, circle3052, circle53052, circle53055;
+    @FXML private TextField caminhoBancoTextField;
 
-    @FXML
-    private Label myStatusLabel;
+    // DBCompiler
+    @FXML private TextField txtBancoA, txtBancoB;
+    @FXML private TextArea txtResultadosScript;
+    @FXML private ListView<String> listViewBancoA;
+    @FXML private ListView<String> listViewBancoB;
+    @FXML private CheckBox chkTables, chkIndexes, chkTriggers, chkProcedures;
+    @FXML private CheckBox chkCompararDados;   // novo
 
-    @FXML
-    private TextArea terminalLogArea;
+    @FXML private VBox sidebarVBox;            // para destaque da sidebar
 
-    @FXML
-    private Label lblCharsetResult;
-
-    @FXML
-    private Label lblTotalTables;
-
-    // Instância do serviço JDBC para consultas nativas no Firebird
     private final DatabaseInfoService infoService = new DatabaseInfoService();
-
-    private static String caminhoBancoSelecionado = "";
-
-    @FXML
-    private javafx.scene.control.ListView<String> listViewBancoA;
-
-    @FXML
-    private javafx.scene.control.ListView<String> listViewBancoB;
-
     private final DatabaseComparator comparator = new DatabaseComparator();
 
-    /**
-     * O método initialize() é um gatilho nativo do JavaFX. Ele é executado
-     * automaticamente assim que o FXML termina de carregar, ideal para carregar
-     * dados iniciais e conectar ao banco.
-     */
+    private static String caminhoBancoSelecionado = "";
+    private static int portaAtivaFirebird = 3050;
+
     @FXML
     public void initialize() {
-        if (caminhoBancoSelecionado.isEmpty()) {
-            System.out.println("NighthawkDB inicializado. A procurar base de dados padrão...");
-            String caminhoPadrao = "C:\\Fortes\\AC\\AC.fdb";
+        iniciarMonitoramentoPortas();
+        portaAtivaFirebird = descobrirPortaAtiva();
 
-            // Verifica se a base de dados padrão sequer existe antes de forçar o erro
-            java.io.File dbPadrao = new java.io.File(caminhoPadrao);
+        if (caminhoBancoSelecionado.isEmpty()) {
+            String caminhoPadrao = "C:\\Fortes\\AC\\AC.fdb";
+            File dbPadrao = new File(caminhoPadrao);
             if (dbPadrao.exists()) {
                 caminhoBancoSelecionado = caminhoPadrao;
+                atualizarCampoCaminho();
                 carregarDiagnosticoBanco(caminhoBancoSelecionado);
+                logTerminal("[SISTEMA] Banco padrão carregado: " + caminhoPadrao);
             } else {
-                if (terminalLogArea != null) {
-                    terminalLogArea.appendText("[SISTEMA] Base de dados padrão não encontrada. Por favor, selecione um banco manualmente.\n");
-                }
+                logTerminal("[SISTEMA] Banco padrão não encontrado. Use 'Selecionar FDB' para escolher um banco.");
             }
         } else {
+            atualizarCampoCaminho();
             carregarDiagnosticoBanco(caminhoBancoSelecionado);
         }
     }
 
-    /**
-     * Carrega e atualiza o painel de informações via JDBC de forma totalmente
-     * dinâmica e assíncrona para qualquer banco de dados selecionado.
-     *
-     * @param dbPath Caminho absoluto do arquivo .fdb selecionado
-     */
+    private void atualizarCampoCaminho() {
+        if (caminhoBancoTextField != null) {
+            caminhoBancoTextField.setText(caminhoBancoSelecionado);
+        }
+    }
+
+    private void iniciarMonitoramentoPortas() {
+        Thread monitorThread = new Thread(() -> {
+            int[] portas = {3050, 3051, 3052, 53052, 53055};
+            Circle[] circulos = {circle3050, circle3051, circle3052, circle53052, circle53055};
+            while (true) {
+                for (int i = 0; i < portas.length; i++) {
+                    final int indice = i;
+                    boolean ativa = testarConexaoPorta("localhost", portas[i]);
+                    javafx.application.Platform.runLater(() -> {
+                        if (circulos[indice] != null) {
+                            circulos[indice].setFill(ativa ? Color.CHARTREUSE : Color.RED);
+                        }
+                    });
+                }
+                try { Thread.sleep(5000); } catch (InterruptedException e) { break; }
+            }
+        });
+        monitorThread.setDaemon(true);
+        monitorThread.start();
+    }
+
+    private boolean testarConexaoPorta(String host, int porta) {
+        try (java.net.Socket socket = new java.net.Socket()) {
+            socket.connect(new java.net.InetSocketAddress(host, porta), 300);
+            return true;
+        } catch (IOException e) { return false; }
+    }
+
+    private int descobrirPortaAtiva() {
+        int[] portas = {3050, 3051, 3052, 53052, 53055};
+        for (int p : portas) {
+            if (testarConexaoPorta("localhost", p)) {
+                logTerminal("[SISTEMA] Firebird detectado na porta " + p);
+                return p;
+            }
+        }
+        logTerminal("[SISTEMA] Nenhuma porta Firebird encontrada!");
+        return 3050;
+    }
+
     private void carregarDiagnosticoBanco(String dbPath) {
-        if (dbPath == null || dbPath.isEmpty()) {
-            return;
-        }
-
-        Thread dbDiagnosticsThread = new Thread(() -> {
+        if (dbPath == null || dbPath.isEmpty()) return;
+        new Thread(() -> {
             try {
-                String formatoUrl = dbPath.replace("\\", "/");
-                String dbUrl = "jdbc:firebirdsql://localhost:3050/" + formatoUrl;
-
-                String relatorioDiagnostico = infoService.obterPainelInformacoes(dbUrl, "SYSDBA", "masterkey");
-                String nomeArquivo = dbPath.substring(dbPath.lastIndexOf(java.io.File.separator) + 1);
-
+                String dbUrl = "jdbc:firebirdsql://localhost:" + portaAtivaFirebird + "/" + dbPath.replace("\\", "/");
+                String relatorio = infoService.obterPainelInformacoes(dbUrl, "SYSDBA", "masterkey");
+                String nomeArquivo = dbPath.substring(dbPath.lastIndexOf(File.separator) + 1);
                 javafx.application.Platform.runLater(() -> {
-                    if (lblCharsetResult != null) {
-                        lblCharsetResult.setText("Instância: " + nomeArquivo);
-                    }
+                    if (lblCharsetResult != null) lblCharsetResult.setText("Instância: " + nomeArquivo);
                     if (terminalLogArea != null) {
-                        terminalLogArea.appendText("\n[JDBC INFO] Diagnóstico atualizado para: " + nomeArquivo + "\n");
-                        terminalLogArea.appendText(relatorioDiagnostico + "\n");
+                        terminalLogArea.appendText("\n[JDBC] " + relatorio + "\n");
                     }
                 });
-
             } catch (Exception e) {
-                // Captura o erro da porta 3050 ou ficheiro corrompido e avisa o utilizador
-                javafx.application.Platform.runLater(() -> {
-                    if (lblCharsetResult != null) {
-                        lblCharsetResult.setText("Result: Erro de Comunicação (Porta 3050)");
-                    }
-                    if (terminalLogArea != null) {
-                        terminalLogArea.appendText("\n[ERRO CRÍTICO] Falha ao ligar via JDBC. O Serviço Firebird (TCP/IP) está ativo na porta 3050?\n");
-                        terminalLogArea.appendText("Detalhe técnico: " + e.getMessage() + "\n");
-                    }
-                });
+                javafx.application.Platform.runLater(() -> logTerminal("[ERRO JDBC] " + e.getMessage()));
             }
-        });
-
-        dbDiagnosticsThread.setDaemon(true);
-        dbDiagnosticsThread.start();
+        }).start();
     }
 
-    /**
-     * Método genérico e reutilizável para disparar qualquer comando de
-     * manutenção do Firebird. Centraliza a lógica evitando repetição de código
-     * (Princípio DRY - Don't Repeat Yourself).
-     */
-    private void executarOperacaoMecanica(String utilitario, List<String> argumentos) {
-        if (myProgressBar == null || myStatusLabel == null) {
-            return;
+    @FXML
+    public void selecionarBancoDeDados(ActionEvent event) {
+        FileChooser fc = new FileChooser();
+        fc.setTitle("Selecionar Banco Firebird");
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Firebird (*.fdb)", "*.fdb"));
+        File file = fc.showOpenDialog(((Node) event.getSource()).getScene().getWindow());
+        if (file != null) {
+            caminhoBancoSelecionado = file.getAbsolutePath();
+            atualizarCampoCaminho();
+            carregarDiagnosticoBanco(caminhoBancoSelecionado);
+            logTerminal("[SISTEMA] Banco selecionado: " + caminhoBancoSelecionado);
+            String versao = FirebirdVersionDetector.detectarVersao(caminhoBancoSelecionado);
+            logTerminal("[INFO] Versão Firebird: " + versao);
         }
-
-        // Cria a tarefa assíncrona customizada.
-        FirebirdMaintenanceTask task = new FirebirdMaintenanceTask(utilitario, argumentos);
-
-        // Vincula a reatividade dos componentes visuais à task em backuground
-        myProgressBar.progressProperty().bind(task.progressProperty());
-        myStatusLabel.textProperty().bind(task.messageProperty());
-
-        // Adiciona um listener para escutar as linhas geradas pelo terminal do firebird
-        task.messageProperty().addListener((obs, oldVal, newVal) -> {
-            if (terminalLogArea != null && newVal != null) {
-                terminalLogArea.appendText(newVal + "\n");
-            }
-        });
-        // Dispara o processo numa Thread dedicada para não congelar o Scene Builder/App
-        Thread backgroundThread = new Thread(task);
-        backgroundThread.setDaemon(true);
-        backgroundThread.start();
     }
 
-    /**
-     * Evento do botão "Verificar Erros"
-     */
-    /**
-     * Validador auxiliar para garantir que existe um banco selecionado.
-     */
     private boolean isBancoSelecionadoValido() {
         if (caminhoBancoSelecionado == null || caminhoBancoSelecionado.isEmpty()) {
-            if (terminalLogArea != null) {
-                terminalLogArea.appendText("[ERRO] Nenhum banco de dados foi selecionado! Use o botão 'Selecionar Banco de Dados'.\n");
-            }
+            logTerminal("[ERRO] Selecione um banco primeiro.");
+            return false;
+        }
+        if (!new File(caminhoBancoSelecionado).exists()) {
+            logTerminal("[ERRO] Arquivo não encontrado: " + caminhoBancoSelecionado);
             return false;
         }
         return true;
     }
 
-    @FXML
-    public void gerenciarCliqueVerificar() {
-        if (!isBancoSelecionadoValido()) {
-            return;
+    @FXML public void gerenciarCliqueVerificar() {
+        if (!isBancoSelecionadoValido()) return;
+        executarOperacaoMecanicaCLI("gfix.exe", List.of("-v", "-f", "-user", "sysdba", "-pass", "masterkey", caminhoBancoSelecionado));
+    }
+    @FXML public void gerenciarCliqueCorrigir() {
+        if (!isBancoSelecionadoValido()) return;
+        executarOperacaoMecanicaCLI("gfix.exe", List.of("-m", "-f", "-user", "sysdba", "-pass", "masterkey", caminhoBancoSelecionado));
+    }
+    @FXML public void gerenciarCliqueSweep() {
+        if (!isBancoSelecionadoValido()) return;
+        executarOperacaoMecanicaCLI("gfix.exe", List.of("-sweep", "-user", "sysdba", "-pass", "masterkey", caminhoBancoSelecionado));
+    }
+    @FXML public void gerenciarCliqueBackup() {
+        if (!isBancoSelecionadoValido()) return;
+        String pasta = caminhoBancoSelecionado.substring(0, caminhoBancoSelecionado.lastIndexOf(File.separator));
+        String backup = pasta + File.separator + "Backup_Manual.fbk";
+        executarOperacaoMecanicaCLI("gbak.exe", List.of("-b", "-v", "-user", "sysdba", "-pass", "masterkey", caminhoBancoSelecionado, backup));
+    }
+    @FXML public void restaurarBackup() {
+        FileChooser fc = new FileChooser();
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Backup (*.fbk)", "*.fbk"));
+        File f = fc.showOpenDialog(caminhoBancoTextField.getScene().getWindow());
+        if (f != null) {
+            String destino = f.getParent() + File.separator + "Restaurado_" + System.currentTimeMillis() + ".fdb";
+            executarOperacaoMecanicaCLI("gbak.exe", List.of("-r", "-v", "-p", "8192", "-user", "sysdba", "-pass", "masterkey", f.getAbsolutePath(), destino));
         }
-
-        List<String> args = List.of("-v", "-f", "-user", "sysdba", "-pass", "masterkey", caminhoBancoSelecionado);
-        executarOperacaoMecanica("gfix.exe", args);
-
-        // Auditoria de saúde
-        Thread auditoriaThread = new Thread(() -> {
-            // Usa o caminho dinâmico para a conexão JDBC também
-            String formatoUrl = caminhoBancoSelecionado.replace("\\", "/");
-            String dbUrl = "jdbc:firebirdsql://localhost:3050/" + formatoUrl;
-
-            List<String> logs = infoService.verificarSaudeIndices(dbUrl, "SYSDBA", "masterkey");
-
-            javafx.application.Platform.runLater(() -> {
-                if (terminalLogArea != null) {
-                    terminalLogArea.appendText("\n--- RESULTADO DA AUDITORIA DE SAÚDE ---\n");
-                    for (String linhaLog : logs) {
-                        terminalLogArea.appendText(linhaLog + "\n");
-                    }
-                    terminalLogArea.appendText("---------------------------------------\n");
-                }
-            });
-        });
-
-        auditoriaThread.setDaemon(true);
-        auditoriaThread.start();
     }
 
-    /**
-     * Evento do botão "Corrigir Erros"
-     */
-    @FXML
-    public void gerenciarCliqueCorrigir() {
-        if (!isBancoSelecionadoValido()) {
-            return;
-        }
-        List<String> args = List.of("-m", "-f", "-user", "sysdba", "-pass", "masterkey", caminhoBancoSelecionado);
-        executarOperacaoMecanica("gfix.exe", args);
-    }
-
-    /**
-     * Evento do botão "Executar Sweep"
-     */
-    @FXML
-    public void gerenciarCliqueSweep() {
-        if (!isBancoSelecionadoValido()) {
-            return;
-        }
-        List<String> args = List.of("-sweep", "-user", "sysdba", "-pass", "masterkey", caminhoBancoSelecionado);
-        executarOperacaoMecanica("gfix.exe", args);
-    }
-
-    /**
-     * Evento do botão "Fazer Backup"
-     */
-    @FXML
-    public void gerenciarCliqueBackup() {
-        if (!isBancoSelecionadoValido()) {
-            return;
-        }
-
-        // Gera o nome do backup dinamicamente na mesma pasta do banco original
-        String pastaDestino = caminhoBancoSelecionado.substring(0, caminhoBancoSelecionado.lastIndexOf(java.io.File.separator));
-        String backupPath = pastaDestino + java.io.File.separator + "Backup_Manual.fbk";
-
-        List<String> args = List.of("-b", "-v", "-user", "sysdba", "-pass", "masterkey", caminhoBancoSelecionado, backupPath);
-        executarOperacaoMecanica("gbak.exe", args);
-    }
-
-    /**
-     * Evento acionado ao clicar no botão "Manutenção Automática". Executa em
-     * sequência assíncrona todas as fases de reparo e aplica o Safe File Swap.
-     */
     @FXML
     public void gerenciarCliqueManutencaoCompleta() {
-        if (!isBancoSelecionadoValido()) {
-            return;
-        }
-        if (myProgressBar == null || myStatusLabel == null) {
-            return;
-        }
-
-        // Agora passa a variável dinâmica e não o caminho fixo
-        ManutencaoCompletaTask macroTask = new ManutencaoCompletaTask(caminhoBancoSelecionado);
-
-        myProgressBar.progressProperty().bind(macroTask.progressProperty());
-        myStatusLabel.textProperty().bind(macroTask.messageProperty());
-
-        macroTask.messageProperty().addListener((obs, oldVal, newVal) -> {
-            if (terminalLogArea != null && newVal != null) {
-                terminalLogArea.appendText(newVal + "\n");
+        if (!isBancoSelecionadoValido() || myProgressBar == null) return;
+        ManutencaoCompletaTask macro = new ManutencaoCompletaTask(caminhoBancoSelecionado);
+        myProgressBar.progressProperty().bind(macro.progressProperty());
+        myStatusLabel.textProperty().bind(macro.messageProperty());
+        macro.messageProperty().addListener((obs, old, newVal) -> {
+            if (newVal != null) {
+                if (newVal.startsWith("CONFIRMAR_TROCA")) {
+                    String[] parts = newVal.split("\\|");
+                    long orig = Long.parseLong(parts[1]), novo = Long.parseLong(parts[2]);
+                    String msg = String.format("Original (%s): %d bytes\nNovo (%s): %d bytes\nSubstituir?", parts[3], orig, parts[4], novo);
+                    javafx.application.Platform.runLater(() -> {
+                        Alert a = new Alert(Alert.AlertType.CONFIRMATION, msg, ButtonType.YES, ButtonType.NO);
+                        a.setTitle("Confirmação");
+                        a.showAndWait().ifPresent(r -> {
+                            if (r == ButtonType.YES) macro.confirmarTroca();
+                            else macro.cancelarOperacao();
+                        });
+                    });
+                } else {
+                    if (terminalLogArea != null) terminalLogArea.appendText(newVal + "\n");
+                }
             }
         });
+        new Thread(macro).start();
+    }
 
-        Thread threadMacro = new Thread(macroTask);
-        threadMacro.setDaemon(true);
-        threadMacro.start();
+    private void executarOperacaoMecanicaCLI(String util, List<String> args) {
+        FirebirdMaintenanceTask task = new FirebirdMaintenanceTask(util, args);
+        myProgressBar.progressProperty().bind(task.progressProperty());
+        myStatusLabel.textProperty().bind(task.messageProperty());
+        task.messageProperty().addListener((obs, old, newVal) -> {
+            if (terminalLogArea != null && newVal != null) {
+                if (newVal.startsWith("RESUMO_GFIX")) {
+                    String[] p = newVal.split("\\|");
+                    terminalLogArea.appendText(String.format("\nResumo: Código=%s Erros=%s Correções=%s\n", p[1], p[2], p[3]));
+                } else {
+                    terminalLogArea.appendText(newVal + "\n");
+                }
+            }
+        });
+        new Thread(task).start();
+    }
+
+    // DBCompiler
+    @FXML public void procurarBancoA() { txtBancoA.setText(escolherFDB()); }
+    @FXML public void procurarBancoB() { txtBancoB.setText(escolherFDB()); }
+
+    private String escolherFDB() {
+        FileChooser fc = new FileChooser();
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Firebird (*.fdb)", "*.fdb"));
+        File f = fc.showOpenDialog(txtBancoA.getScene().getWindow());
+        return f != null ? f.getAbsolutePath() : "";
     }
 
     @FXML
-    public void gerenciarCliqueSincronizar() {
-        if (listViewBancoA == null || listViewBancoB == null) {
+    public void executarComparacaoIBExpert() {
+        String pathA = txtBancoA.getText(), pathB = txtBancoB.getText();
+        if (pathA.isEmpty() || pathB.isEmpty()) {
+            txtResultadosScript.setText("/* ERRO: selecione dois bancos */");
             return;
         }
+        txtResultadosScript.setText("/* Extraindo metadados... */");
+        new Thread(() -> {
+            try {
+                DatabaseComparator.ResultadoComparacao resultado = comparator.compararBancos(pathA, pathB);
+                javafx.application.Platform.runLater(() -> {
+                    listViewBancoA.getItems().setAll(resultado.difsBancoA);
+                    listViewBancoB.getItems().setAll(resultado.difsBancoB);
+                    txtResultadosScript.setText(resultado.scriptDDL);
+                });
 
-        listViewBancoA.getItems().clear();
-        listViewBancoB.getItems().clear();
-
-        // Simulação elegante enquanto não criamos a extração real
-        listViewBancoA.getItems().addAll("--- PRONTO PARA EXTRAÇÃO DDL ---", "Tabela: FORNECEDORES", "Index: IDX_NOME");
-        listViewBancoB.getItems().addAll("--- PRONTO PARA EXTRAÇÃO DDL ---", "Tabela: FORNECEDORES", "Index: IDX_NOME_NOVO");
-
-        if (terminalLogArea != null) {
-            terminalLogArea.appendText("[DBCOMPILER] Módulo inicializado e aguardando integração com ISQL.exe\n");
-        }
+                if (chkCompararDados != null && chkCompararDados.isSelected()) {
+                    Map<String, Long> countsA = contarRegistros(pathA);
+                    Map<String, Long> countsB = contarRegistros(pathB);
+                    List<String> diffCountA = new ArrayList<>();
+                    List<String> diffCountB = new ArrayList<>();
+                    for (String tabela : countsA.keySet()) {
+                        long ca = countsA.get(tabela);
+                        long cb = countsB.getOrDefault(tabela, 0L);
+                        if (ca != cb) {
+                            diffCountA.add(tabela + " = " + ca);
+                            diffCountB.add(tabela + " = " + cb);
+                        }
+                    }
+                    javafx.application.Platform.runLater(() -> {
+                        listViewBancoA.getItems().addAll(diffCountA);
+                        listViewBancoB.getItems().addAll(diffCountB);
+                    });
+                }
+            } catch (Exception e) {
+                javafx.application.Platform.runLater(() -> txtResultadosScript.setText("/* ERRO: " + e.getMessage() + " */"));
+            }
+        }).start();
     }
 
-    /**
-     * Abre uma janela nativa de seleção de arquivos (FileChooser) para escolher
-     * o banco .fdb do cliente.
-     */
-    @FXML
-    public void selecionarBancoDados(javafx.event.ActionEvent event) {
-        javafx.stage.FileChooser fileChooser = new javafx.stage.FileChooser();
-        fileChooser.setTitle("Selecionar Banco de Dados Firebird");
+    private Map<String, Long> contarRegistros(String dbPath) {
+        Map<String, Long> map = new HashMap<>();
+        String url = "jdbc:firebirdsql://localhost:" + portaAtivaFirebird + "/" + dbPath.replace("\\", "/");
+        try (Connection c = DriverManager.getConnection(url, "SYSDBA", "masterkey");
+             Statement s = c.createStatement();
+             ResultSet rs = s.executeQuery("SELECT rdb$relation_name FROM rdb$relations WHERE rdb$view_blr IS NULL AND (rdb$system_flag IS NULL OR rdb$system_flag=0)")) {
+            while (rs.next()) {
+                String tabela = rs.getString(1).trim();
+                try (Statement s2 = c.createStatement();
+                     ResultSet rs2 = s2.executeQuery("SELECT COUNT(*) FROM " + tabela)) {
+                    if (rs2.next()) map.put(tabela, rs2.getLong(1));
+                } catch (SQLException ignored) {}
+            }
+        } catch (Exception e) {
+            logTerminal("[ERRO] contagem: " + e.getMessage());
+        }
+        return map;
+    }
 
-        // Filtra para exibir apenas arquivos de extensão de banco Firebird
-        fileChooser.getExtensionFilters().add(
-                new javafx.stage.FileChooser.ExtensionFilter("Firebird Databases (*.fdb)", "*.fdb")
-        );
+    // Navegação
+    @FXML public void navegarParaDashboard(ActionEvent e) throws IOException { trocarCena("/view/dashboard.fxml", (Node) e.getSource()); }
+    @FXML public void navegarParaCompiler(ActionEvent e) throws IOException { trocarCena("/view/dbcompiler.fxml", (Node) e.getSource()); }
+    @FXML public void abrirMSSQLPlaceholder(ActionEvent e) throws IOException { trocarCena("/view/mssql.fxml", (Node) e.getSource()); }
 
-        // Obtém o palco (Stage) atual para ancorar a janela de arquivos
-        javafx.scene.Node node = (javafx.scene.Node) event.getSource();
-        javafx.stage.Stage stage = (javafx.stage.Stage) node.getScene().getWindow();
+    private void trocarCena(String fxml, Node node) throws IOException {
+        Stage stage = (Stage) node.getScene().getWindow();
+        FXMLLoader loader = new FXMLLoader(getClass().getResource(fxml));
+        Parent root = loader.load();
+        stage.setScene(new Scene(root, 1100, 700));
+    }
 
-        java.io.File file = fileChooser.showOpenDialog(stage);
-        if (file != null) {
-            this.caminhoBancoSelecionado = file.getAbsolutePath();
-            if (terminalLogArea != null) {
-                terminalLogArea.appendText("[SISTEMA] Base de dados selecionada para operações: " + caminhoBancoSelecionado + "\n");
-                carregarDiagnosticoBanco(this.caminhoBancoSelecionado);
+    // Destaque da sidebar
+    public void setActiveTab(String texto) {
+    if (sidebarVBox == null) return;
+    for (Node n : sidebarVBox.getChildren()) {
+        if (n instanceof Button) {
+            Button btn = (Button) n;
+            btn.getStyleClass().remove("nav-button-active");
+            if (btn.getText().contains(texto)) {
+                btn.getStyleClass().add("nav-button-active");
             }
         }
     }
+}
 
-    /**
-     * Transiciona o ecrã atual do aplicativo para a interface do DBCompiler.
-     * Captura o evento de clique para identificar a janela ativa de forma
-     * dinâmica.
-     */
-    @FXML
-    public void navegarParaCompiler(javafx.event.ActionEvent event) throws IOException {
-        // Captura o componente que disparou o clique e passa para o alternador de cena
-        javafx.scene.Node botaoDisparador = (javafx.scene.Node) event.getSource();
-        trocarCena("/view/dbcompiler.fxml", botaoDisparador);
+    @FXML public void abrirJanelaSobre() {
+        Alert a = new Alert(Alert.AlertType.INFORMATION);
+        a.setTitle("Sobre");
+        a.setHeaderText("Manutenção Firebird");
+        a.showAndWait();
     }
 
-    /**
-     * Transiciona o ecrã atual do aplicativo de volta para o Dashboard.
-     */
-    @FXML
-    public void navegarParaDashboard(javafx.event.ActionEvent event) throws IOException {
-        javafx.scene.Node botaoDisparador = (javafx.scene.Node) event.getSource();
-        trocarCena("/view/dashboard.fxml", botaoDisparador);
-    }
-
-    /**
-     * Método auxiliar privado responsável por realizar a troca de cenas (Views)
-     * de forma genérica e segura contra NullPointerException.
-     */
-    private void trocarCena(String fxmlPath, javafx.scene.Node nodoVisual) throws IOException {
-        // Obtém a janela (stage) atual a partir do nodo visual que disparou a ação
-        Stage stage = (Stage) nodoVisual.getScene().getWindow();
-
-        // Carrega o novo arquivo estrutural FXML
-        FXMLLoader loader = new FXMLLoader(getClass().getResource(fxmlPath));
-        Parent root = loader.load();
-
-        // Substitui a cena preservando o dimensionamento padrão do Dashboard
-        Scene scene = new Scene(root, 1100, 700);
-        stage.setScene(scene);
-    }
-
-    /**
-     * Exibe a caixa de diálogo informativa de créditos do sistema.
-     */
-    @FXML
-    public void abrirJanelaSobre() {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("Sobre o NighthawkDB Pro");
-        alert.setHeaderText("NighthawkDB Pro - Enterprise Edition");
-        alert.setContentText("Desenvolvido por Gabriel Levi\n"
-                + "Soluções de TI & Database Maintenance\n\n"
-                + "Um utilitário avançado para otimização, manutenção completa, "
-                + "saúde de índices e validação estrutural de servidores Firebird 2.5 até 5.0.");
-        alert.showAndWait();
+    private void logTerminal(String msg) {
+        if (terminalLogArea != null) terminalLogArea.appendText(msg + "\n");
     }
 }

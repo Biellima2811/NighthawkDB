@@ -2,127 +2,90 @@ package com.mycompany.nighthawkdb.core;
 
 import com.mycompany.nighthawkdb.config.ConfigManager;
 import javafx.concurrent.Task;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.InputStreamReader;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.util.List;
+import java.io.*;
+import java.nio.file.*;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- * Task assíncrona responsável por gerenciar a manutenção completa do banco de
- * dados. Executa sequencialmente os utilitários de checagem lixeira, backup e
- * restauração. Ao final, realiza a substituição segura dos arquivos físicos do
- * cliente.
- */
 public class ManutencaoCompletaTask extends Task<Void> {
 
     private final String dbPathStr;
+    private final AtomicBoolean confirmacao = new AtomicBoolean(false);
+    private boolean cancelada = false;
 
-    public String getDbPathStr() {
-        return dbPathStr;
-    }
-
-    /**
-     * Construtor da Task de manutenção macro.
-     *
-     * @param dbPathStr O caminho absoluto do banco selecionado (Ex:
-     * C:\Bancos\CLIENTE_AC_123.fdb)
-     */
     public ManutencaoCompletaTask(String dbPathStr) {
         this.dbPathStr = dbPathStr;
+    }
+
+    public void confirmarTroca() {
+        confirmacao.set(true);
+    }
+
+    public void cancelarOperacao() {
+        cancelada = true;
+        confirmacao.set(true);
     }
 
     @Override
     protected Void call() throws Exception {
         File dbFile = new File(dbPathStr);
         if (!dbFile.exists()) {
-            updateMessage("Erro Crítico: O arquivo de banco de dados original não existe.");
-            updateProgress(0, 100);
+            updateMessage("Banco não existe.");
             return null;
         }
 
-        // Descobre dinamicamente os nomes dos caminhos derivados sem a extensão .fdb
-        String absolutoSemExtensao = dbFile.getAbsolutePath().substring(0, dbFile.getAbsolutePath().lastIndexOf("."));
-        String backupPath = absolutoSemExtensao + ".fbk";
-        String tempRestorePath = absolutoSemExtensao + "_temp.fdb";
-        String oldDbPath = absolutoSemExtensao + "_Old.fdb";
+        String semExt = dbPathStr.substring(0, dbPathStr.lastIndexOf('.'));
+        String backup = semExt + ".fbk", temp = semExt + "_temp.fdb", old = semExt + "_Old.fdb";
+        String bin = ConfigManager.getFirebirdBinPath();
+        String gfix = bin.isEmpty() ? "gfix.exe" : bin + File.separator + "gfix.exe";
+        String gbak = bin.isEmpty() ? "gbak.exe" : bin + File.separator + "gbak.exe";
 
-        // Localiza a pasta BIN configurada de forma persistente pelo usuário
-        String binFolder = ConfigManager.getFirebirdBinPath();
-        String gfix = binFolder.isEmpty() ? "gfix.exe" : binFolder + File.separator + "gfix.exe";
-        String gbak = binFolder.isEmpty() ? "gbak.exe" : binFolder + File.separator + "gbak.exe";
+        updateMessage("Etapa 1/5: Verificando (gfix -v)");
+        executar(List.of(gfix, "-v", "-f", "-user", "sysdba", "-pass", "masterkey", dbPathStr));
+        updateMessage("Etapa 2/5: Corrigindo (gfix -m)");
+        executar(List.of(gfix, "-m", "-f", "-user", "sysdba", "-pass", "masterkey", dbPathStr));
+        updateMessage("Etapa 3/5: Sweep");
+        executar(List.of(gfix, "-sweep", "-user", "sysdba", "-pass", "masterkey", dbPathStr));
+        updateMessage("Etapa 4/5: Backup");
+        executar(List.of(gbak, "-b", "-v", "-user", "sysdba", "-pass", "masterkey", dbPathStr, backup));
+        updateMessage("Etapa 5/5: Restore");
+        executar(List.of(gbak, "-r", "-v", "-p", "8192", "-user", "sysdba", "-pass", "masterkey", "-REP", backup, temp));
 
-        // ETAPA 1: Verificar Erros de Integridade Física
-        updateMessage("Etapa 1/5: Verificando integridade física das páginas (gfix -v)...");
-        updateProgress(10, 100);
-        executarSubProcesso(List.of(gfix, "-v", "-f", "-user", "sysdba", "-pass", "masterkey", dbPathStr));
+        Path orig = Path.of(dbPathStr), oldPath = Path.of(old), tempPath = Path.of(temp);
+        long tamOrig = Files.size(orig), tamNovo = Files.size(tempPath);
+        updateMessage(String.format("CONFIRMAR_TROCA|%d|%d|%s|%s", tamOrig, tamNovo, orig.getFileName(), tempPath.getFileName()));
 
-        // ETAPA 2: Liberar Liberação e Marcar Correções de Páginas Mutiladas
-        updateMessage("Etapa 2/5: Corrigindo e liberando amarrações de transações (gfix -m)...");
-        updateProgress(30, 100);
-        executarSubProcesso(List.of(gfix, "-m", "-f", "-user", "sysdba", "-pass", "masterkey", dbPathStr));
+        while (!confirmacao.get()) {
+            Thread.sleep(200);
+        }
+        if (cancelada) {
+            Files.deleteIfExists(tempPath);
+            updateMessage("Cancelado.");
+            return null;
+        }
 
-        // ETAPA 3: Limpeza Completa da Lixeira de Transações (Garbage Collection)
-        updateMessage("Etapa 3/5: Executando varredura e limpeza de lixeira ativa (gfix -sweep)...");
-        updateProgress(50, 100);
-        executarSubProcesso(List.of(gfix, "-sweep", "-user", "sysdba", "-pass", "masterkey", dbPathStr));
-
-        // ETAPA 4: Geração do Arquivo de Dump/Backup Compactado
-        updateMessage("Etapa 4/5: Compactando dados e gerando arquivo de segurança (gbak -b)...");
-        updateProgress(70, 100);
-        executarSubProcesso(List.of(gbak, "-b", "-v", "-user", "sysdba", "-pass", "masterkey", dbPathStr, backupPath));
-
-        // ETAPA 5: Restauração Estrutural no Arquivo Temporário
-        updateMessage("Etapa 5/5: Reorganizando índices e reconstruindo tabelas (gbak -r)...");
-        updateProgress(90, 100);
-        executarSubProcesso(List.of(gbak, "-r", "-v", "-p", "8192", "-user", "sysdba", "-pass", "masterkey", "-REP", backupPath, tempRestorePath));
-
-        // =========================================================================
-        // FASE CRÍTICA DA OPERAÇÃO: SAFE FILE SWAP (SUBSTITUIÇÃO DE ARQUIVOS)
-        // =========================================================================
-        updateMessage("Fase Final: Sincronizando substituição segura de arquivos no disco...");
-
-        Path caminhoOriginal = Path.of(dbPathStr);
-        Path caminhoBancoAntigoOld = Path.of(oldDbPath);
-        Path caminhoTemporarioRestaurado = Path.of(tempRestorePath);
-
-        // 1. Remove uma sobra de arquivo _Old caso o usuário já tenha rodado a manutenção antes
-        Files.deleteIfExists(caminhoBancoAntigoOld);
-
-        // 2. Transforma o banco atual de produção em arquivo histórico _Old
-        updateMessage("Renomeando base atual para " + caminhoBancoAntigoOld.getFileName() + "...");
-        Files.move(caminhoOriginal, caminhoBancoAntigoOld, StandardCopyOption.ATOMIC_MOVE);
-
-        // 3. Move o banco temporário reestruturado para assumir o nome original oficial
-        updateMessage("Base restaurada e higienizada assumindo produção oficial...");
-        Files.move(caminhoTemporarioRestaurado, caminhoOriginal, StandardCopyOption.ATOMIC_MOVE);
-
-        updateMessage("Sucesso: Manutenção Concluída! Banco operacional sob o nome original.");
+        Files.deleteIfExists(oldPath);
+        updateMessage("Renomeando original para " + oldPath.getFileName());
+        Files.move(orig, oldPath, StandardCopyOption.ATOMIC_MOVE);
+        updateMessage("Movendo novo banco para produção");
+        Files.move(tempPath, orig, StandardCopyOption.ATOMIC_MOVE);
+        updateMessage("Sucesso! Manutenção concluída.");
         updateProgress(100, 100);
-
         return null;
     }
-    /**
-     * Executa de forma atômica e encapsulada cada comando CLI do Firebird.
-     */
-    private void executarSubProcesso(List<String> comando) throws Exception{
-        ProcessBuilder builder = new ProcessBuilder(comando);
-        Process process = builder.start();
-        
-        try(BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))){
+
+    private void executar(List<String> cmd) throws Exception {
+        ProcessBuilder pb = new ProcessBuilder(cmd);
+        Process p = pb.start();
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
             String line;
-            while ((line = reader.readLine()) != null) {                
-                // Envia os outputs parciais linha por linha para alimentar o TextArea de logs
+            while ((line = br.readLine()) != null) {
                 updateMessage(line);
             }
         }
-        int exitCode = process.waitFor();
-        // gfix pode retornar códigos de saída de aviso caso ache erros, o que é normal.
-        // Já o gbak exige código de saída 0 para garantir que o backup/restore não corrompeu.
-        if (exitCode != 0 && comando.get(0).contains("gbak.exe")) {
-            throw new RuntimeException("Falha na subetapa de backup/restauração do Firebird. Código: " + exitCode);
+        int exit = p.waitFor();
+        if (exit != 0 && cmd.get(0).contains("gbak.exe")) {
+            throw new RuntimeException("Falha no gbak, código " + exit);
         }
     }
 }
