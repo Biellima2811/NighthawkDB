@@ -75,7 +75,7 @@
             </HBox>
 
             <!-- Botões de Ação Menores -->
-            <GridPane hgap="8" vgap="8">
+            <GridPane fx:id="gridAcoes" hgap="8" vgap="8">
                 <columnConstraints>
                     <ColumnConstraints percentWidth="33.3" />
                     <ColumnConstraints percentWidth="33.3" />

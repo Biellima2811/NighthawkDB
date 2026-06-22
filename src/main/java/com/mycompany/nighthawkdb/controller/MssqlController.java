@@ -17,6 +17,7 @@ import javafx.scene.Node;
 import java.io.File;
 import java.sql.*;
 import java.util.*;
+import javafx.scene.layout.GridPane;
 
 public class MssqlController {
 
@@ -36,6 +37,9 @@ public class MssqlController {
     private TextField txtTableName;   // para CHECKTABLE
     @FXML
     private VBox sidebarVBox;
+
+    @FXML
+    private GridPane gridAcoes;
 
     @FXML
     public void initialize() {
@@ -100,8 +104,18 @@ public class MssqlController {
     }
 
     private String buildJdbcUrl() {
-        return String.format("jdbc:sqlserver://%s:%s;databaseName=%s;integratedSecurity=true;encrypt=false;trustServerCertificate=true",
-                txtServer.getText().trim(), txtPort.getText().trim(), txtDatabase.getText().trim());
+        String user = txtUser.getText().trim();
+        String pwd = txtPassword.getText().trim();
+
+        // Se usuário e senha estiverem vazios, tenta usar a Autenticação do Windows (Integrated Security)
+        if (user.isEmpty() && pwd.isEmpty()) {
+            return String.format("jdbc:sqlserver://%s:%s;databaseName=%s;integratedSecurity=true;encrypt=false;trustServerCertificate=true",
+                    txtServer.getText().trim(), txtPort.getText().trim(), txtDatabase.getText().trim());
+        } else {
+            // Se tiver usuário/senha digitados, usa autenticação SQL normal (não precisa da DLL)
+            return String.format("jdbc:sqlserver://%s:%s;databaseName=%s;encrypt=false;trustServerCertificate=true",
+                    txtServer.getText().trim(), txtPort.getText().trim(), txtDatabase.getText().trim());
+        }
     }
 
     private Connection getConnection() throws SQLException {
@@ -241,6 +255,9 @@ public class MssqlController {
     }
 
     private void executarComandoSQL(String desc, String sql) {
+        if (gridAcoes != null) {
+            gridAcoes.setDisable(true); // Trava a tela do MSSQL
+        }
         setProgressIndeterminate(true);
         setStatus("Executando: " + desc + "...");
         log("[MSSQL] Iniciando -> " + desc);
@@ -275,6 +292,11 @@ public class MssqlController {
                 Platform.runLater(() -> setStatus("Erro na execução!"));
             } finally {
                 setProgressIndeterminate(false);
+                Platform.runLater(() -> {
+                    if (gridAcoes != null) {
+                        gridAcoes.setDisable(false); // Libera a tela do MSSQL
+                    }
+                });
             }
         }).start();
     }
